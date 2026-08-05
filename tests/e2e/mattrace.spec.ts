@@ -197,7 +197,7 @@ test("settings, issue drawers, all exports, and project lifecycle controls work"
   await page.keyboard.press("Escape");
   await expect(missingOpener).toBeFocused();
   await page.getByRole("button", { name: /冲突检测提醒/ }).click();
-  await expect(page.getByRole("dialog", { name: "冲突检测" })).toContainText("差异 42%");
+  await expect(page.getByRole("dialog", { name: "冲突检测" })).toContainText("没有发现跨文献数值冲突");
   await page.keyboard.press("Escape");
 
   for (const name of ["JSON", "CSV", "Markdown"]) {
@@ -288,11 +288,23 @@ test("body typography is readable without breaking the mobile viewport", async (
   await page.goto("/");
   await waitForHydration(page);
   const fontSize = (selector: string) => page.locator(selector).first().evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  const tokens = await page.evaluate(() => {
+    const styles = getComputedStyle(document.documentElement);
+    return ["--text-display", "--text-drawer", "--text-section", "--text-card", "--text-body", "--text-support", "--text-meta"].map((name) => styles.getPropertyValue(name).trim());
+  });
+  expect(tokens).toEqual(["32px", "28px", "18px", "15px", "13px", "12px", "11px"]);
+  expect(await fontSize(".section-heading h2")).toBe(18);
   expect(await fontSize(".section-heading p")).toBeGreaterThanOrEqual(13);
-  expect(await fontSize("tbody td")).toBeGreaterThanOrEqual(12);
+  expect(await fontSize("tbody td")).toBeGreaterThanOrEqual(13);
   expect(await fontSize(".evidence-card blockquote")).toBeGreaterThanOrEqual(13);
   expect(await fontSize(".mode-banner p")).toBeGreaterThanOrEqual(11);
   expect(await fontSize(".session-card p")).toBeGreaterThanOrEqual(11);
+  expect(await fontSize(".file-chip i")).toBeGreaterThanOrEqual(11);
+
+  await page.getByRole("button", { name: /^Skill 管理/ }).click();
+  expect(await fontSize(".details-drawer h2")).toBe(28);
+  expect(await fontSize(".skill-overview strong")).toBe(15);
+  await page.keyboard.press("Escape");
 
   await page.setViewportSize({ width: 390, height: 844 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

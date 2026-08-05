@@ -10,15 +10,15 @@ export function createExampleReport() {
   return normalizeAnalysisResult({
     summary: "已载入 3 篇公开 PDF，并生成可追溯材料性能数据。",
     records: [
-      { material: "Li₇La₃Zr₂O₁₂", process: "固相烧结（900°C）", property: "离子电导率", value: 1.2, unit: "mS/cm", conditions: { temperature: "25°C", method: "阻抗法" }, sourceDocument: "Adv. Mater. 2024.pdf", page: 12, evidence: "The ionic conductivity of LLZO sintered at 900°C was measured to be 1.2 mS/cm at 25°C by impedance spectroscopy.", confidence: "high" },
-      { material: "CoCrFeNiMo₀.₅", process: "真空熔炼", property: "屈服强度", value: 685, unit: "MPa", conditions: { temperature: "室温", method: "拉伸测试", rate: "1e-3 s⁻¹" }, sourceDocument: "J. Alloys Compd. 2023.pdf", page: 8, evidence: "The alloy reached a yield strength of 685 MPa under room-temperature tensile testing at 1e-3 s-1.", confidence: "medium" },
-      { material: "Ti₃AlC₂ MXene", process: "HF 刻蚀", property: "比容量", value: 312, unit: "mAh/g", conditions: { current: "1 A/g", setup: "三电极" }, sourceDocument: "Acta Mater. 2022.pdf", page: 6, evidence: "A specific capacity of 312 mAh/g was reported at 1 A/g in a three-electrode configuration.", confidence: "high" },
-      { material: "Li₇La₃Zr₂O₁₂", process: "热压烧结（950°C）", property: "离子电导率", value: 1.7, unit: "mS/cm", conditions: { temperature: "25°C" }, sourceDocument: "Solid State Ionics 2023.pdf", page: 5, evidence: "Hot-pressed LLZO exhibited an ionic conductivity of 1.7 mS/cm at 25°C.", confidence: "medium" },
+      { material: "Li₆.₄La₃Zr₁.₄Ta₀.₆O₁₂", process: "TDTR 测量", property: "热导率", value: 1.4, unit: "W m⁻¹ K⁻¹", conditions: { temperature: "室温", range: "150–350 K" }, sourceDocument: "Solid Electrolytes 2021.pdf", page: 2, evidence: "Thermal conductivities of Li6.4La3Zr1.4Ta0.6O12 and Li1.5Al0.5Ge1.5(PO4)3 are 1.4 W m-1 K-1 and 2.2 W m-1 K-1, respectively.", confidence: "high" },
+      { material: "Li₁.₅Al₀.₅Ge₁.₅(PO₄)₃", process: "TDTR 测量", property: "热导率", value: 2.2, unit: "W m⁻¹ K⁻¹", conditions: { temperature: "室温", range: "150–350 K" }, sourceDocument: "Solid Electrolytes 2021.pdf", page: 2, evidence: "Thermal conductivities of Li6.4La3Zr1.4Ta0.6O12 and Li1.5Al0.5Ge1.5(PO4)3 are 1.4 W m-1 K-1 and 2.2 W m-1 K-1, respectively.", confidence: "high" },
+      { material: "Cs₂LiNd(BO₃)₂", process: "AIMD 计算", property: "离子电导率", value: 0.000503, unit: "S/cm", conditions: { temperature: "室温", method: "AIMD" }, sourceDocument: "Superionic Discovery 2022.pdf", page: 21, evidence: "Cs2LiNd(BO3)2 0.000503 S/cm at RT.", confidence: "high" },
+      { material: "Li₃P", process: "机器学习数据集核验", property: "离子电导率", value: 0.001, unit: "S/cm", conditions: { temperature: "室温" }, sourceDocument: "Lattice Dynamics 2024.pdf", page: 10, evidence: "Li3P (σ = 1.0 × 10-3 S/cm) and β-Li3N (σ = 2.085 × 10-4 S/cm) are representative examples.", confidence: "medium" },
     ],
     missingConditions: [
-      { recordIndex: 1, field: "relativeDensity", message: "样品相对密度未说明" },
-      { recordIndex: 2, field: "temperature", message: "测试温度未说明" },
-      { recordIndex: 3, field: "method", message: "测试方法未说明" },
+      { recordIndex: 0, field: "relativeDensity", message: "LLZTO 样品相对密度未说明" },
+      { recordIndex: 1, field: "relativeDensity", message: "LAGP 样品相对密度未说明" },
+      { recordIndex: 3, field: "method", message: "Li₃P 实验测试方法未说明" },
     ],
   });
 }
