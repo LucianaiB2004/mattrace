@@ -1,0 +1,4 @@
+interface:
+  display_name: "MatTrace Material Evidence"
+  short_description: "Extract traceable material data with evidence"
+  default_prompt: "Use $material-evidence-extractor to turn these materials documents into an auditable dataset."
