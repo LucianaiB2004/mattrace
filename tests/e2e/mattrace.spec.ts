@@ -339,3 +339,35 @@ test("reduced motion disables decorative animations", async ({ page }) => {
     expect(animationName).toBe("none");
   }
 });
+
+test("Skill manager edits, persists, restores, and exports the competition Skill", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await waitForHydration(page);
+
+  const navigation = page.locator(".nav-list");
+  const skillNavigation = navigation.getByRole("button", { name: /^Skill 管理/ });
+  await expect(skillNavigation).toHaveCount(1);
+  await expect(navigation.locator(".nav-item").nth(1)).toHaveText(/Skill 管理/);
+  await skillNavigation.click();
+  await expect(page.getByRole("dialog", { name: "Skill 管理" })).toBeVisible();
+  await expect(page.getByText("material-evidence-extractor").last()).toBeVisible();
+
+  await page.getByRole("button", { name: "编辑 Skill" }).click();
+  const editor = page.getByRole("textbox", { name: "Skill Markdown 编辑器" });
+  await editor.fill(`${await editor.inputValue()}\n\n## 团队规则\n进入人工复核。`);
+  await page.getByRole("button", { name: "保存到浏览器" }).click();
+  await page.reload();
+  await waitForHydration(page);
+  await navigation.getByRole("button", { name: /^Skill 管理/ }).click();
+  await page.getByRole("button", { name: "编辑 Skill" }).click();
+  await expect(page.getByRole("textbox", { name: "Skill Markdown 编辑器" })).toHaveValue(/团队规则/);
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出 SKILL.md" }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe("SKILL.md");
+  await page.getByRole("button", { name: "恢复默认" }).click();
+  await expect(page.getByRole("textbox", { name: "Skill Markdown 编辑器" })).not.toHaveValue(/团队规则/);
+});

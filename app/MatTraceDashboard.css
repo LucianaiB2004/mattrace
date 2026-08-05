@@ -1335,6 +1335,27 @@ button.alert-card { width: 100%; text-align: left; font: inherit; cursor: pointe
 .privacy-detail h3 { margin: 1px 0 5px; font-size: 12px; }
 .privacy-detail p { margin: 0; color: #777d94; font-size: 10px; line-height: 1.65; }
 
+.skill-manager { display: grid; gap: 18px; }
+.skill-identity { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid #dfdcff; border-radius: 16px; background: linear-gradient(135deg, #fff, #f4f1ff); }
+.skill-logo { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 15px; color: white; background: linear-gradient(135deg, #6650ed, #9a7cff); box-shadow: 0 12px 25px rgba(98, 76, 220, .22); font-size: 25px; }
+.skill-identity p { margin: 0 0 4px; color: #8b90a6; font-size: 12px; }
+.skill-identity h3 { margin: 0 0 7px; color: #252b48; font-size: 17px; }
+.skill-status { color: #25a980; font-size: 11px; font-weight: 700; }
+.skill-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border-radius: 12px; background: #eeeff6; }
+.skill-tabs button { padding: 10px; border: 0; border-radius: 9px; color: #737990; background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; }
+.skill-tabs button.active { color: #624be0; background: white; box-shadow: 0 5px 14px rgba(47, 43, 91, .08); }
+.skill-overview { display: grid; gap: 10px; }
+.skill-overview article { padding: 16px; border: 1px solid #e5e6ef; border-radius: 13px; background: white; }
+.skill-overview small { color: #8d92a8; font-size: 11px; }
+.skill-overview strong { display: block; margin: 5px 0; color: #343a58; font-size: 15px; }
+.skill-overview p { margin: 0; color: #747b94; font-size: 12px; line-height: 1.65; }
+.skill-markdown-preview, .skill-editor { min-height: 440px; margin: 0; padding: 18px; border: 1px solid #dfe1ec; border-radius: 13px; color: #3f4662; background: white; font: 12px/1.75 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
+.skill-editor { width: 100%; resize: vertical; outline: none; }
+.skill-editor:focus { border-color: #7961eb; box-shadow: 0 0 0 3px rgba(121, 97, 235, .12); }
+.skill-actions { display: flex; justify-content: flex-end; gap: 9px; }
+.skill-actions button { padding: 10px 13px; border: 1px solid #dedfeb; border-radius: 9px; color: #666d87; background: white; font-size: 12px; cursor: pointer; }
+.skill-actions .primary-button { color: white; border: 0; }
+
 @media (max-width: 960px) {
   .top-actions .project-action { display: none; }
 }

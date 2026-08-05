@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
 import DetailsDrawer from "./components/DetailsDrawer";
 import SettingsDialog from "./components/SettingsDialog";
+import SkillManager from "./components/SkillManager";
 import ToastRegion, { type Toast } from "./components/ToastRegion";
 import { EXAMPLE_DOCUMENTS, createExampleReport } from "./domain/example-data.mjs";
 import { buildExport } from "./domain/export-report.mjs";
@@ -30,10 +31,11 @@ type RecordRow = {
 type AlertItem = { id: string; recordId?: string; recordIds?: string[]; message: string; field?: string; differencePercent?: number | null };
 type Report = { records: RecordRow[]; missingConditions: AlertItem[]; conflicts: AlertItem[]; summary: string; generatedAt: string };
 type Workflow = { phase: string; mode: string | null; activeStage: number; documentCount: number; reportId: string | null; error: string | null };
-type Drawer = "documents" | "records" | "evidence" | "missing" | "conflicts" | "export" | "privacy" | null;
+type Drawer = "skill" | "documents" | "records" | "evidence" | "missing" | "conflicts" | "export" | "privacy" | null;
 
 const navItems = [
-  ["⌂", "首页", "Dashboard", "dashboard"], ["▤", "文献管理", "Documents", "documents"],
+  ["⌂", "首页", "Dashboard", "dashboard"], ["✦", "Skill 管理", "Skill Studio", "skill"],
+  ["▤", "文献管理", "Documents", "documents"],
   ["⌗", "数据提取", "Extraction", "results"], ["◇", "证据链", "Evidence", "evidence"],
   ["⚠", "冲突检测", "Conflicts", "conflicts"], ["⇩", "报告导出", "Export", "export"],
   ["⚙", "设置", "Settings", "settings"],
@@ -94,7 +96,7 @@ export default function MatTraceDashboard() {
   function navigate(zh: string, target: string) {
     setActiveNav(zh);
     if (target === "settings") { setSettingsOpen(true); return; }
-    if (["documents", "records", "evidence", "conflicts", "export"].includes(target)) {
+    if (["skill", "documents", "records", "evidence", "conflicts", "export"].includes(target)) {
       setDrawer(target === "results" ? "records" : target as Drawer);
       return;
     }
@@ -240,7 +242,7 @@ export default function MatTraceDashboard() {
           <button className={`nav-item ${activeNav === zh ? "active" : ""}`} key={zh} onClick={() => navigate(zh, target)} type="button"><span className="nav-icon" aria-hidden="true">{icon}</span><span>{zh}</span><small>/ {en}</small></button>
         ))}</nav>
         <div className="mascot-zone"><p>Let&apos;s trace<br />every data!</p><Image src="/mattrace-mascot.png" alt="MatTrace 科研机器人" width={1024} height={1536} priority unoptimized /></div>
-        <button className="skill-pill" type="button" onClick={() => setDrawer("privacy")}><span /> Skill: material-evidence-extractor</button>
+        <button className="skill-pill" type="button" onClick={() => setDrawer("skill")}><span /> Skill: material-evidence-extractor</button>
       </aside>
 
       <section className="workspace">
@@ -275,7 +277,8 @@ export default function MatTraceDashboard() {
       {settingsOpen && <SettingsDialog open gateway={gateway} model={model} apiKey={apiKey} onClose={() => setSettingsOpen(false)} onApply={(value) => { setGateway(value.gateway); setModel(value.model); setApiKey(value.apiKey); }} onNotify={notify} />}
       <ToastRegion toasts={toasts} />
 
-      <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : undefined}>
+      <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined}>
+        {!documentPreview && drawer === "skill" && <SkillManager onNotify={notify} />}
         {documentPreview && <><div className="document-text-preview">{documentPreview.pages.map((page) => <section key={page.page}><strong>第 {page.page} 页</strong><p>{page.text || "本页没有可提取文本"}</p></section>)}</div><button className="drawer-danger" type="button" onClick={() => { removeDocument(documentPreview.id); setDocumentPreview(null); }}>移除此文档</button></>}
         {!documentPreview && drawer === "documents" && <div className="drawer-list">{documents.map((doc) => <article key={doc.id}><span className={`file-type ${doc.type}`}>{doc.type.toUpperCase()}</span><div><strong>{doc.name}</strong><p>{bytes(doc.size)} · {doc.pageCount} 页 · {doc.example ? "示例文档" : "本地已解析"}</p></div><button type="button" onClick={() => setDocumentPreview(doc)}>预览</button><button type="button" onClick={() => removeDocument(doc.id)}>移除</button></article>)}</div>}
         {!documentPreview && drawer === "records" && <div className="record-grid">{records.map((record) => <button key={record.id} type="button" onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }}><span>{record.material}</span><strong>{record.value} {record.unit}</strong><small>{record.property} · {record.sourceDocument}</small></button>)}</div>}
