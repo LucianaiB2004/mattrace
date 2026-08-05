@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { request as httpsRequest } from "node:https";
+import { buildUpstreamHeaders, responseHeaders } from "./proxy-transport.mjs";
 
 const upstream = "https://ai.chipcloud.cc";
 const port = Number(process.argv[2] || 8788);
@@ -52,16 +53,9 @@ createServer(async (request, response) => {
     const requestBody = chunks.length ? Buffer.concat(chunks) : Buffer.alloc(0);
     const upstreamResponse = await requestUpstream(`${upstream}${request.url}`, {
       method: request.method,
-      headers: {
-        Authorization: request.headers.authorization || "",
-        "Content-Type": request.headers["content-type"] || "application/json",
-        "Content-Length": requestBody.length,
-        "Accept-Encoding": "identity",
-      },
+      headers: buildUpstreamHeaders(request.headers, requestBody.length),
     }, requestBody);
-    const headers = { ...upstreamResponse.headers };
-    delete headers["content-encoding"];
-    delete headers["content-length"];
+    const headers = responseHeaders(upstreamResponse.headers);
     response.writeHead(upstreamResponse.status, { ...headers, ...cors });
     response.end(upstreamResponse.body);
   } catch (error) {

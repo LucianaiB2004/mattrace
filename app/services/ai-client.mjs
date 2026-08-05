@@ -7,6 +7,12 @@ function baseV1(gateway) {
   return clean.endsWith("/v1") ? clean : `${clean}/v1`;
 }
 
+export function requestGateway(gateway, runtimeLocation = globalThis.location) {
+  const clean = String(gateway ?? "").trim().replace(/\/+$/, "");
+  const local = runtimeLocation?.hostname === "localhost" || runtimeLocation?.hostname === "127.0.0.1";
+  return local && clean === "https://ai.chipcloud.cc" ? "http://127.0.0.1:8788" : clean;
+}
+
 function headers(config) {
   if (!String(config.apiKey ?? "").trim()) throw new Error("请输入 API Key");
   return {
@@ -40,7 +46,7 @@ function contentFromCompletion(payload) {
 }
 
 export async function testProvider(config, fetchImpl = fetch, signal) {
-  const root = baseV1(config.gateway);
+  const root = baseV1(requestGateway(config.gateway));
   const requestHeaders = headers(config);
   const models = await fetchImpl(`${root}/models`, { method: "GET", headers: requestHeaders, signal });
   if (models.ok) return { ok: true, method: "models" };
@@ -71,7 +77,7 @@ export async function analyzeDocuments(
   onStage = () => {},
 ) {
   if (!Array.isArray(documents) || documents.length === 0) throw new Error("请先添加可解析的文档");
-  const root = baseV1(config.gateway);
+  const root = baseV1(requestGateway(config.gateway));
   const requestHeaders = headers(config);
   onStage(0);
   onStage(1);

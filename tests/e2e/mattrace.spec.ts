@@ -60,7 +60,7 @@ test("bundled literature mode, evidence navigation, and exports work end to end"
   expect(errors).toEqual([]);
 });
 
-test("local text upload drives a mocked real model analysis without persisting the key", async ({ page }) => {
+test("local text analysis remembers the provider but keeps the key out of project snapshots", async ({ page }) => {
   const errors = monitorRuntimeErrors(page);
   await page.route("**/v1/chat/completions", async (route) => {
     const request = route.request();
@@ -93,7 +93,7 @@ test("local text upload drives a mocked real model analysis without persisting t
   await expect(page.getByText("真实分析完成，共提取 1 条数据")).toBeVisible();
   await expect(page.getByRole("cell", { name: "LLZO" })).toBeVisible();
 
-  await page.getByRole("button", { name: "保存当前项目" }).click();
+  await page.locator(".session-card").getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("当前项目已安全保存，不包含 API Key")).toBeVisible();
   const persisted = await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -108,6 +108,15 @@ test("local text upload drives a mocked real model analysis without persisting t
     });
   });
   expect(JSON.stringify(persisted)).not.toContain("runtime-test-key");
+  await page.reload();
+  await waitForHydration(page);
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  await expect(page.getByRole("dialog", { name: "模型配置" }).getByLabel("API Key")).toHaveValue("runtime-test-key");
+  await page.getByRole("dialog", { name: "模型配置" }).getByRole("button", { name: "清除 Key" }).click();
+  await page.reload();
+  await waitForHydration(page);
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  await expect(page.getByRole("dialog", { name: "模型配置" }).getByLabel("API Key")).toHaveValue("");
   expect(errors).toEqual([]);
 });
 
@@ -225,9 +234,9 @@ test("document title rename cascades through evidence, export, and project resto
   await page.getByRole("button", { name: "Markdown" }).click();
   await expect(page.getByRole("dialog", { name: "导出预览" })).toContainText("Battery Thermal Evidence.pdf");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "保存当前项目" }).click();
+  await page.locator(".session-card").getByRole("button", { name: "保存", exact: true }).click();
   await page.getByRole("button", { name: "清空" }).click();
-  await page.getByRole("button", { name: "恢复项目" }).click();
+  await page.locator(".session-card").getByRole("button", { name: "恢复", exact: true }).click();
   await expect(page.locator(".file-chip").first()).toContainText("Battery Thermal Evidence");
 
   await page.locator(".file-chip").first().click();
@@ -296,16 +305,16 @@ test("settings, issue drawers, all exports, and project lifecycle controls work"
     await page.keyboard.press("Escape");
   }
 
-  await page.getByRole("button", { name: "保存当前项目" }).click();
+  await page.locator(".session-card").getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("当前项目已安全保存，不包含 API Key")).toBeVisible();
   await page.getByRole("button", { name: "清空" }).click();
   await expect(page.getByText("已添加 0/10")).toBeVisible();
-  await page.getByRole("button", { name: "恢复项目" }).click();
+  await page.locator(".session-card").getByRole("button", { name: "恢复", exact: true }).click();
   await expect(page.getByText("项目已恢复，API Key 仍为空")).toBeVisible();
   await expect(page.getByText("已添加 3/10")).toBeVisible();
   await page.getByRole("button", { name: "删除存档" }).click();
   await expect(page.getByText("已保存项目已删除")).toBeVisible();
-  await page.getByRole("button", { name: "恢复项目" }).click();
+  await page.locator(".session-card").getByRole("button", { name: "恢复", exact: true }).click();
   await expect(page.getByText("没有找到已保存的项目")).toBeVisible();
 });
 

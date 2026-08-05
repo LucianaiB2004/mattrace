@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { analyzeDocuments, testProvider } from "../app/services/ai-client.mjs";
+import { analyzeDocuments, requestGateway, testProvider } from "../app/services/ai-client.mjs";
 
 const config = {
   gateway: "https://ai.chipcloud.cc/",
@@ -18,6 +18,12 @@ const documents = [{
   text: "LLZO conductivity is 1.2 mS/cm at 25°C.",
   pages: [{ page: 1, text: "LLZO conductivity is 1.2 mS/cm at 25°C." }],
 }];
+
+test("local MatTrace routes the default gateway through its CORS proxy", () => {
+  assert.equal(requestGateway("https://ai.chipcloud.cc", { hostname: "localhost" }), "http://127.0.0.1:8788");
+  assert.equal(requestGateway("https://ai.chipcloud.cc", { hostname: "example.github.io" }), "https://ai.chipcloud.cc");
+  assert.equal(requestGateway("https://other.example", { hostname: "localhost" }), "https://other.example");
+});
 
 function response(status, body) {
   return {

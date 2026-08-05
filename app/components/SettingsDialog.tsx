@@ -50,16 +50,16 @@ export default function SettingsDialog({ open, gateway, model, apiKey, onApply, 
         <button ref={closeRef} className="modal-close" onClick={onClose} type="button" aria-label="关闭模型配置">×</button>
         <p className="eyebrow">BRING YOUR OWN KEY</p>
         <h2 id="settings-title">模型配置</h2>
-        <p>浏览器直接请求 OpenAI-compatible 接口；API Key 只保留在当前页面内存中。</p>
+        <p>浏览器直接请求 OpenAI-compatible 接口；应用配置后，API Key 会保存在当前浏览器。</p>
         <label>API 网关<input value={draft.gateway} onChange={(event) => setDraft({ ...draft, gateway: event.target.value })} /></label>
         <label>模型名称<input value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} /></label>
-        <label>API Key<input type="password" autoComplete="off" value={draft.apiKey} placeholder="运行时输入，不会保存" onChange={(event) => { setDraft({ ...draft, apiKey: event.target.value }); setStatus("idle"); }} /></label>
-        <div className={`connection-note ${status}`}><span />{status === "testing" ? "正在连接模型服务…" : status === "success" ? "连接成功" : status === "error" ? "连接失败，请查看提示" : "Key 仅保存在当前页面内存中"}</div>
-        <div className="privacy-box"><strong>隐私与数据流</strong><p>真实分析仅发送解析后的文本、文档名和页码；原始文件、项目快照和 API Key 不会发送或上传。</p></div>
+        <label>API Key<input type="password" autoComplete="off" value={draft.apiKey} placeholder="输入一次，应用后由当前浏览器记住" onChange={(event) => { setDraft({ ...draft, apiKey: event.target.value }); setStatus("idle"); }} /></label>
+        <div className={`connection-note ${status}`}><span />{status === "testing" ? "正在连接模型服务…" : status === "success" ? "连接成功" : status === "error" ? "连接失败，请查看提示" : draft.apiKey ? "Key 已保存在当前浏览器" : "尚未保存 API Key"}</div>
+        <div className="privacy-box"><strong>本地存储说明</strong><p>Key 保存在当前浏览器的 localStorage（未加密），不会进入项目快照、Skill、导出报告或 GitHub。请勿在不可信设备上启用。</p></div>
         <div className="modal-actions three">
-          <button className="secondary-button" type="button" onClick={() => { const next = { ...draft, apiKey: "" }; setDraft(next); onApply(next); onNotify("API Key 已从内存清除", "success"); }}>清除 Key</button>
+          <button className="secondary-button" type="button" onClick={() => { const next = { ...draft, apiKey: "" }; setDraft(next); onApply(next); onNotify("API Key 已从当前浏览器清除", "success"); }}>清除 Key</button>
           <button className="secondary-button" type="button" disabled={status === "testing"} onClick={checkConnection}>{status === "testing" ? "连接中…" : "测试连接"}</button>
-          <button className="primary-button" type="button" onClick={() => { onApply(draft); onClose(); onNotify("当前会话配置已应用", "success"); }}>应用配置</button>
+          <button className="primary-button" type="button" onClick={() => { onApply(draft); onClose(); onNotify("配置已保存到当前浏览器", "success"); }}>应用配置</button>
         </div>
       </section>
     </div>

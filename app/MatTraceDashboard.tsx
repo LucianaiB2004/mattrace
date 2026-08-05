@@ -12,6 +12,7 @@ import { EXAMPLE_DOCUMENTS, createExampleReport } from "./domain/example-data.mj
 import { buildExport } from "./domain/export-report.mjs";
 import { createProjectSnapshot } from "./domain/project-snapshot.mjs";
 import { renameDocument } from "./domain/document-workspace.mjs";
+import { loadProvider, saveProvider } from "./domain/provider-storage.mjs";
 import { createWorkflowState, transitionWorkflow } from "./domain/workflow.mjs";
 import { analyzeDocuments } from "./services/ai-client.mjs";
 import { parseDocument } from "./services/document-parser.mjs";
@@ -65,15 +66,16 @@ function download(output: { filename: string; content: string; mime: string }) {
 function delay(milliseconds: number) { return new Promise((resolve) => window.setTimeout(resolve, milliseconds)); }
 
 export default function MatTraceDashboard() {
+  const initialProvider = useMemo(() => typeof window === "undefined" ? { ...DEFAULT_PROVIDER, apiKey: "" } : loadProvider(window.localStorage, { ...DEFAULT_PROVIDER, apiKey: "" }), []);
   const initialReport = useMemo(() => createExampleReport() as Report, []);
   const [activeNav, setActiveNav] = useState("首页");
   const [documents, setDocuments] = useState<ParsedDocument[]>(() => [...EXAMPLE_DOCUMENTS] as ParsedDocument[]);
   const [report, setReport] = useState<Report | null>(initialReport);
   const [selectedRecordId, setSelectedRecordId] = useState(initialReport.records[0].id);
   const [workflow, setWorkflow] = useState<Workflow>(() => ({ ...createWorkflowState(), phase: "success", mode: "example", activeStage: 5, documentCount: 3, reportId: "example-report" }));
-  const [gateway, setGateway] = useState(DEFAULT_PROVIDER.gateway);
-  const [model, setModel] = useState(DEFAULT_PROVIDER.model);
-  const [apiKey, setApiKey] = useState("");
+  const [gateway, setGateway] = useState(initialProvider.gateway);
+  const [model, setModel] = useState(initialProvider.model);
+  const [apiKey, setApiKey] = useState(initialProvider.apiKey);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [documentPreview, setDocumentPreview] = useState<ParsedDocument | null>(null);
@@ -290,7 +292,7 @@ export default function MatTraceDashboard() {
       </aside>
 
       <section className="workspace">
-        <header className="topbar"><div><p className="eyebrow">MATERIALS INTELLIGENCE WORKSPACE</p><h1>Hi, 研究者 <span aria-hidden="true">👋</span></h1><p>让每一条材料数据都有出处、有条件、可复查。</p></div><div className="top-actions"><button className="project-action" type="button" onClick={saveProject}>保存当前项目</button><button className="project-action" type="button" onClick={restoreProject}>恢复项目</button><button className="model-button" onClick={() => setSettingsOpen(true)} type="button" aria-label="打开模型配置" title={gateway}><span className="status-dot" /><span><small>模型配置</small>{model}</span><b>⌄</b></button></div></header>
+        <header className="topbar"><div><p className="eyebrow">MATERIALS INTELLIGENCE WORKSPACE</p><h1>Hi, 研究者 <span aria-hidden="true">👋</span></h1><p>让每一条材料数据都有出处、有条件、可复查。</p></div><div className="top-actions"><button className="model-button" onClick={() => setSettingsOpen(true)} type="button" aria-label="打开模型配置" title={gateway}><span className="status-dot" /><span><small>模型配置</small>{model}</span><b>⌄</b></button></div></header>
 
         <div className="content-grid"><section className="main-column">
           <article className="card upload-card" id="documents" aria-labelledby="upload-title">
@@ -314,11 +316,11 @@ export default function MatTraceDashboard() {
           <button className="alert-card missing" type="button" onClick={() => setDrawer("missing")}><div><h3>缺失条件提醒 <span>{report?.missingConditions.length ?? 0}</span></h3><p>{report?.missingConditions[0]?.message ?? "暂无缺失条件"}</p></div><b aria-hidden="true">⚗</b></button>
           <button className="alert-card conflict" id="conflicts" type="button" onClick={() => setDrawer("conflicts")}><div><h3>冲突检测提醒 <span>{report?.conflicts.length ?? 0}</span></h3><p>{report?.conflicts[0]?.message ?? "暂无数值冲突"}</p></div><b aria-hidden="true">△</b></button>
           <article className="card export-card" id="export"><div className="section-heading compact"><div><h2>导出报告</h2></div><button className="text-button" type="button" onClick={() => setDrawer("export")}>导出预览</button></div><div className="export-actions">{(["json", "csv", "markdown"] as const).map((format) => <button type="button" disabled={!report?.records.length} onClick={() => openExport(format)} key={format}><b>{format === "json" ? "⌘" : format === "csv" ? "▦" : "▤"}</b><span>{format === "markdown" ? "Markdown" : format.toUpperCase()}</span></button>)}</div></article>
-          <article className="card session-card"><h3>项目与隐私</h3><p>仅在你点击保存时写入本浏览器，永不包含 API Key。</p><div><button type="button" onClick={saveProject}>保存</button><button type="button" onClick={deleteSavedProject}>删除存档</button></div></article>
+          <article className="card session-card"><h3>项目与隐私</h3><p>仅在你点击保存时写入本浏览器，永不包含 API Key。</p><div><button type="button" onClick={saveProject}>保存</button><button type="button" onClick={restoreProject}>恢复</button><button type="button" onClick={deleteSavedProject}>删除存档</button></div></article>
         </aside></div>
       </section>
 
-      {settingsOpen && <SettingsDialog open gateway={gateway} model={model} apiKey={apiKey} onClose={() => setSettingsOpen(false)} onApply={(value) => { setGateway(value.gateway); setModel(value.model); setApiKey(value.apiKey); }} onNotify={notify} />}
+      {settingsOpen && <SettingsDialog open gateway={gateway} model={model} apiKey={apiKey} onClose={() => setSettingsOpen(false)} onApply={(value) => { const saved = saveProvider(window.localStorage, value); setGateway(saved.gateway); setModel(saved.model); setApiKey(saved.apiKey); }} onNotify={notify} />}
       <ToastRegion toasts={toasts} />
 
       <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined} editableTitle={!!documentPreview} onRenameTitle={renamePreviewDocument}>
