@@ -144,7 +144,7 @@ test("PDF opens a real document view while DOCX exposes extracted text", async (
   await pdfButton.click();
   const pdfDialog = page.getByRole("dialog", { name: "conductivity.pdf" });
   await expect(pdfDialog.getByRole("button", { name: "PDF 原文" })).toBeVisible();
-  await expect(pdfDialog.getByTitle("conductivity.pdf PDF 预览")).toBeVisible();
+  await expect(pdfDialog.locator(".pdf-reader")).toBeVisible();
   await pdfDialog.getByRole("button", { name: "解析文本" }).click();
   await expect(pdfDialog).toContainText("LLZO ionic conductivity");
   await page.getByRole("dialog", { name: "conductivity.pdf" }).getByRole("button", { name: "关闭详情" }).click();
@@ -206,6 +206,50 @@ test("bundled PDFs hydrate before entering a real AI request", async ({ page }) 
   expect(prompt).toContain("Superionic Discovery 2022.pdf");
   expect(prompt).toContain("Lattice Dynamics 2024.pdf");
   expect(prompt).toContain("[第 28 页]");
+});
+
+test("document title rename cascades through evidence, export, and project restore", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.locator(".file-chip").first().click();
+  const dialog = page.getByRole("dialog", { name: "Solid Electrolytes 2021.pdf" });
+  await dialog.getByRole("heading", { name: "Solid Electrolytes 2021.pdf" }).dblclick();
+  const editor = page.getByRole("textbox", { name: "文档名称" });
+  await editor.fill("Battery Thermal Evidence");
+  await editor.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Battery Thermal Evidence.pdf" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".file-chip").first()).toContainText("Battery Thermal Evidence");
+  await expect(page.locator(".citation")).toContainText("Battery Thermal Evidence.pdf");
+
+  await page.getByRole("button", { name: "Markdown" }).click();
+  await expect(page.getByRole("dialog", { name: "导出预览" })).toContainText("Battery Thermal Evidence.pdf");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "保存当前项目" }).click();
+  await page.getByRole("button", { name: "清空" }).click();
+  await page.getByRole("button", { name: "恢复项目" }).click();
+  await expect(page.locator(".file-chip").first()).toContainText("Battery Thermal Evidence");
+
+  await page.locator(".file-chip").first().click();
+  const renamedDialog = page.getByRole("dialog", { name: "Battery Thermal Evidence.pdf" });
+  await renamedDialog.getByRole("heading", { name: "Battery Thermal Evidence.pdf" }).dblclick();
+  const renamedEditor = page.getByRole("textbox", { name: "文档名称" });
+  await renamedEditor.fill("Superionic Discovery 2022.pdf");
+  await renamedEditor.press("Enter");
+  await expect(page.getByText("已存在同名文档")).toBeVisible();
+  await renamedEditor.fill("  ");
+  await renamedEditor.press("Enter");
+  await expect(page.getByText("文档名称不能为空")).toBeVisible();
+
+  await renamedEditor.fill("Thermal Evidence Reviewed");
+  await renamedEditor.press("Tab");
+  const blurRenamedDialog = page.getByRole("dialog", { name: "Thermal Evidence Reviewed.pdf" });
+  await expect(blurRenamedDialog).toBeVisible();
+  await blurRenamedDialog.getByRole("heading", { name: "Thermal Evidence Reviewed.pdf" }).dblclick();
+  const escapeEditor = page.getByRole("textbox", { name: "文档名称" });
+  await escapeEditor.fill("Discard This Name");
+  await escapeEditor.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Thermal Evidence Reviewed.pdf" })).toBeVisible();
 });
 
 test("drag and drop accepts text while invalid files show an actionable error", async ({ page }) => {

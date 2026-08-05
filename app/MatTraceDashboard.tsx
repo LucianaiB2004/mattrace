@@ -11,6 +11,7 @@ import ToastRegion, { type Toast } from "./components/ToastRegion";
 import { EXAMPLE_DOCUMENTS, createExampleReport } from "./domain/example-data.mjs";
 import { buildExport } from "./domain/export-report.mjs";
 import { createProjectSnapshot } from "./domain/project-snapshot.mjs";
+import { renameDocument } from "./domain/document-workspace.mjs";
 import { createWorkflowState, transitionWorkflow } from "./domain/workflow.mjs";
 import { analyzeDocuments } from "./services/ai-client.mjs";
 import { parseDocument } from "./services/document-parser.mjs";
@@ -83,6 +84,7 @@ export default function MatTraceDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const previewUrlsRef = useRef(new Set<string>());
+  const toastIdRef = useRef(0);
 
   useEffect(() => () => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -96,7 +98,8 @@ export default function MatTraceDashboard() {
   const propertyCount = new Set(records.map((item) => item.property)).size;
 
   function notify(message: string, tone: Toast["tone"] = "info") {
-    const id = Date.now() + Math.random();
+    const id = toastIdRef.current + 1;
+    toastIdRef.current = id;
     setToasts((current) => [...current, { id, message, tone }]);
     window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), 3600);
   }
@@ -175,12 +178,22 @@ export default function MatTraceDashboard() {
     notify("文档已移除", "success");
   }
 
+  function renamePreviewDocument(requestedName: string) {
+    if (!documentPreview) return;
+    const next = renameDocument({ documents, report }, documentPreview.id, requestedName) as { documents: ParsedDocument[]; report: Report | null };
+    const renamed = next.documents.find((item) => item.id === documentPreview.id);
+    setDocuments(next.documents);
+    setReport(next.report);
+    if (renamed) setDocumentPreview(renamed);
+    notify(`文档已重命名为 ${renamed?.name ?? requestedName}`, "success");
+  }
+
   async function runExample() {
     if (isBusy) return;
     setDocuments([...EXAMPLE_DOCUMENTS] as ParsedDocument[]);
     setReport(null);
     setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_STARTED", mode: "example" }));
-    for (let stage = 0; stage < 6; stage += 1) {
+    for (const stage of [0, 1, 2, 3, 4, 5]) {
       setWorkflow((state) => transitionWorkflow(state, { type: "STAGE_CHANGED", stage }));
       await delay(260);
     }
@@ -308,9 +321,9 @@ export default function MatTraceDashboard() {
       {settingsOpen && <SettingsDialog open gateway={gateway} model={model} apiKey={apiKey} onClose={() => setSettingsOpen(false)} onApply={(value) => { setGateway(value.gateway); setModel(value.model); setApiKey(value.apiKey); }} onNotify={notify} />}
       <ToastRegion toasts={toasts} />
 
-      <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined}>
+      <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined} editableTitle={!!documentPreview} onRenameTitle={renamePreviewDocument}>
         {!documentPreview && drawer === "skill" && <SkillManager onNotify={notify} />}
-        {documentPreview && <><div className="document-view-tabs">{documentPreview.type === "pdf" && <button className={documentPreviewMode === "pdf" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("pdf")}>PDF 原文</button>}<button className={documentPreviewMode === "text" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("text")}>解析文本</button></div>{documentPreview.type === "pdf" && documentPreviewMode === "pdf" ? (documentPreview.previewUrl ? <PdfReader source={documentPreview.previewUrl} name={documentPreview.name} /> : <div className="drawer-empty">当前项目未保留此 PDF 原文件，请重新上传后预览</div>) : <DocumentTextViewer pages={documentPreview.pages} />}<button className="drawer-danger" type="button" onClick={() => { removeDocument(documentPreview.id); setDocumentPreview(null); }}>移除此文档</button></>}
+        {documentPreview && <><div className="document-view-tabs">{documentPreview.type === "pdf" && <button className={documentPreviewMode === "pdf" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("pdf")}>PDF 原文</button>}<button className={documentPreviewMode === "text" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("text")}>解析文本</button></div>{documentPreview.type === "pdf" && documentPreviewMode === "pdf" ? (documentPreview.previewUrl ? <PdfReader key={documentPreview.previewUrl} source={documentPreview.previewUrl} name={documentPreview.name} /> : <div className="drawer-empty">当前项目未保留此 PDF 原文件，请重新上传后预览</div>) : <DocumentTextViewer pages={documentPreview.pages} />}<button className="drawer-danger" type="button" onClick={() => { removeDocument(documentPreview.id); setDocumentPreview(null); }}>移除此文档</button></>}
         {!documentPreview && drawer === "documents" && <div className="drawer-list">{documents.map((doc) => <article key={doc.id}><span className={`file-type ${doc.type}`}>{doc.type.toUpperCase()}</span><div><strong>{doc.name}</strong><p>{bytes(doc.size)} · {doc.pageCount} 页 · {doc.example ? "公开 PDF" : "本地已解析"}</p></div><button type="button" onClick={() => void openDocument(doc)}>预览</button><button type="button" onClick={() => removeDocument(doc.id)}>移除</button></article>)}</div>}
         {!documentPreview && drawer === "records" && <div className="record-grid">{records.map((record) => <button key={record.id} type="button" onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }}><span>{record.material}</span><strong>{record.value} {record.unit}</strong><small>{record.property} · {record.sourceDocument}</small></button>)}</div>}
         {!documentPreview && drawer === "evidence" && (activeRecord ? <div className="evidence-detail"><div className="evidence-meta"><span>{activeRecord.material}</span><span>{activeRecord.property}</span><span>{activeRecord.value} {activeRecord.unit}</span><span>{activeRecord.confidence}</span></div><blockquote>{activeRecord.evidence}</blockquote><p><strong>来源：</strong>{activeRecord.sourceDocument} · 第 {activeRecord.page} 页</p><p><strong>制备：</strong>{activeRecord.process}</p><p><strong>条件：</strong>{activeRecord.conditionText}</p><div className="drawer-tabs">{records.map((record) => <button className={record.id === selectedRecordId ? "active" : ""} key={record.id} type="button" onClick={() => setSelectedRecordId(record.id)}>{record.id}</button>)}</div></div> : <div className="drawer-empty">暂无证据</div>)}

@@ -4,13 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { openPdfSource } from "../services/pdf-runtime.mjs";
 
 type PdfReaderProps = { source: string; name: string };
-type PdfDocument = { numPages: number; getPage: (page: number) => Promise<any>; destroy: () => Promise<void> };
+type PdfRenderTask = { cancel: () => void; promise: Promise<unknown> };
+type PdfPage = {
+  getViewport: (options: { scale: number }) => { width: number; height: number };
+  render: (options: { canvasContext: CanvasRenderingContext2D | null; viewport: { width: number; height: number } }) => PdfRenderTask;
+};
+type PdfDocument = { numPages: number; getPage: (page: number) => Promise<PdfPage>; destroy?: () => Promise<void> };
 
 function PdfThumbnail({ document, pageNumber, active, onSelect }: { document: PdfDocument; pageNumber: number; active: boolean; onSelect: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let cancelled = false;
-    let task: { cancel: () => void; promise: Promise<unknown> } | null = null;
+    let task: PdfRenderTask | null = null;
     void document.getPage(pageNumber).then((page) => {
       if (cancelled || !canvasRef.current) return;
       const initial = page.getViewport({ scale: 1 });
@@ -38,15 +43,14 @@ export default function PdfReader({ source, name }: PdfReaderProps) {
   useEffect(() => {
     let active = true;
     let loaded: PdfDocument | null = null;
-    setDocument(null); setError(""); setPageNumber(1); setZoom(1);
     void openPdfSource(source).then((next: PdfDocument) => { loaded = next; if (active) setDocument(next); }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "PDF 加载失败"); });
-    return () => { active = false; if (loaded) void loaded.destroy(); };
+    return () => { active = false; if (typeof loaded?.destroy === "function") void loaded.destroy(); };
   }, [source, retry]);
 
   useEffect(() => {
     if (!document || !canvasRef.current || !mainRef.current) return;
     let cancelled = false;
-    let task: { cancel: () => void; promise: Promise<unknown> } | null = null;
+    let task: PdfRenderTask | null = null;
     void document.getPage(pageNumber).then((page) => {
       if (cancelled || !canvasRef.current || !mainRef.current) return;
       const initial = page.getViewport({ scale: 1 });
@@ -66,7 +70,7 @@ export default function PdfReader({ source, name }: PdfReaderProps) {
     return () => { cancelled = true; task?.cancel(); };
   }, [document, pageNumber, zoom]);
 
-  if (error) return <div className="pdf-reader-error"><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)}>重试 PDF</button></div>;
+  if (error) return <div className="pdf-reader-error"><p>{error}</p><button type="button" onClick={() => { setError(""); setRetry((value) => value + 1); }}>重试 PDF</button></div>;
   if (!document) return <div className="pdf-reader-loading">正在加载 {name}…</div>;
   return <section className="pdf-reader" aria-label={`${name} PDF 阅读器`}>
     <header className="pdf-reader-toolbar">

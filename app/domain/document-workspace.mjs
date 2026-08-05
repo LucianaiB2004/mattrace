@@ -24,6 +24,8 @@ export function renameDocument(state, documentId, requestedName) {
 }
 
 export function stripSessionDocumentFields(document) {
-  const { previewUrl: _previewUrl, binary: _binary, ...persistent } = document;
+  const persistent = { ...document };
+  delete persistent.binary;
+  if (persistent.previewUrl?.startsWith("blob:")) delete persistent.previewUrl;
   return persistent;
 }

@@ -1295,6 +1295,10 @@ button.alert-card { width: 100%; text-align: left; font: inherit; cursor: pointe
 @keyframes drawer-in { from { transform: translateX(32px); opacity: 0; } }
 .details-drawer > header { display: flex; align-items: flex-start; justify-content: space-between; padding: 28px 30px 22px; border-bottom: 1px solid #e8e9f2; background: white; }
 .details-drawer h2 { margin: 3px 0 0; font-size: var(--text-drawer); }
+.details-drawer h2.editable { cursor: text; }
+.details-drawer h2.editable:hover { color: #6650df; }
+.drawer-title-editor { width: min(680px, 62vw); margin: 2px 0 1px; padding: 5px 8px; border: 1px solid #7860e9; border-radius: 8px; color: #202641; background: white; font-size: var(--text-drawer); font-weight: 700; outline: 3px solid rgba(120,96,233,.12); }
+.details-drawer header p.drawer-title-error { margin: 5px 0 0; color: #dd5361; font-size: var(--text-support); font-weight: 700; }
 .details-drawer header p:not(.eyebrow) { margin: 6px 0 0; color: #8c91a7; font-size: var(--text-support); }
 .details-drawer header > button { width: 34px; height: 34px; border: 0; border-radius: 50%; color: #777c92; background: #f1f2f7; font-size: 20px; cursor: pointer; }
 .drawer-content { flex: 1; padding: 24px 30px 36px; overflow: auto; }

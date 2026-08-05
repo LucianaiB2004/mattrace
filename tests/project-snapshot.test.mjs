@@ -8,7 +8,10 @@ import {
 
 test("project snapshot keeps documents, report, and public provider configuration", () => {
   const snapshot = createProjectSnapshot({
-    documents: [{ id: "doc-1", name: "a.pdf", text: "content", size: 7, type: "pdf", pages: [], previewUrl: "blob:session-secret", binary: new Uint8Array([1, 2]) }],
+    documents: [
+      { id: "doc-1", name: "a.pdf", text: "content", size: 7, type: "pdf", pages: [], previewUrl: "blob:session-secret", binary: new Uint8Array([1, 2]) },
+      { id: "doc-2", name: "public.pdf", text: "public", size: 8, type: "pdf", pages: [], previewUrl: "./literature/public.pdf" },
+    ],
     report: { records: [{ id: "record-1" }], missingConditions: [], conflicts: [] },
     gateway: "https://ai.chipcloud.cc",
     model: "qwen3.8-max",
@@ -20,6 +23,7 @@ test("project snapshot keeps documents, report, and public provider configuratio
   assert.equal(snapshot.documents[0].name, "a.pdf");
   assert.equal("previewUrl" in snapshot.documents[0], false);
   assert.equal("binary" in snapshot.documents[0], false);
+  assert.equal(snapshot.documents[1].previewUrl, "./literature/public.pdf");
   assert.equal(snapshot.provider.model, "qwen3.8-max");
   assert.equal(snapshot.selectedRecordId, "record-1");
   assert.equal(JSON.stringify(snapshot).includes("must-not-survive"), false);
