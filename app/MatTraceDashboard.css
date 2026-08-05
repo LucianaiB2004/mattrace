@@ -364,6 +364,13 @@
 
 .card {
   padding: 20px;
+  transition: border-color 260ms ease, box-shadow 260ms ease, transform 260ms cubic-bezier(.2,.8,.2,1);
+}
+
+.card:hover {
+  border-color: rgba(197, 189, 248, 0.92);
+  box-shadow: 0 20px 46px rgba(66, 56, 135, 0.1);
+  transform: translateY(-2px);
 }
 
 .section-heading {
@@ -440,6 +447,8 @@
 .drop-zone:hover {
   border-color: var(--violet);
   background: #f7f5ff;
+  box-shadow: 0 16px 30px rgba(102, 79, 217, 0.12);
+  transform: translateY(-3px);
 }
 
 .upload-art {
@@ -452,6 +461,12 @@
   border-radius: 12px;
   background: linear-gradient(135deg, #a78fff, #6b55ed);
   box-shadow: 0 9px 20px rgba(113, 87, 236, 0.22);
+  animation: uploadFloat 2.8s ease-in-out infinite;
+}
+
+@keyframes uploadFloat {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-5px) rotate(2deg); }
 }
 
 .drop-zone strong {
@@ -601,6 +616,12 @@
 
 .stage.complete .stage-top i {
   background: linear-gradient(90deg, #8b72f7, #c4baff);
+  background-size: 200% 100%;
+  animation: progressFlow 2.2s linear infinite;
+}
+
+@keyframes progressFlow {
+  to { background-position: -200% 0; }
 }
 
 .stage strong,
@@ -655,6 +676,12 @@
   padding: 11px 12px;
   border: 1px solid;
   border-radius: 12px;
+  transition: box-shadow 220ms ease, transform 220ms cubic-bezier(.2,.8,.2,1);
+}
+
+.summary-card:hover {
+  box-shadow: 0 14px 28px rgba(67, 55, 137, 0.13);
+  transform: translateY(-4px);
 }
 
 .summary-card small,
@@ -679,7 +706,10 @@
   height: 32px;
   font-size: 20px;
   border-radius: 10px;
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1);
 }
+
+.summary-card:hover b { transform: scale(1.1) rotate(5deg); }
 
 .summary-card.violet { border-color: #dcd7ff; background: #faf9ff; }
 .summary-card.violet b { color: var(--violet); background: #eeebff; }
@@ -720,12 +750,13 @@ th {
 
 tbody tr {
   cursor: pointer;
-  transition: background 150ms ease;
+  transition: background 180ms ease, transform 180ms cubic-bezier(.2,.8,.2,1);
 }
 
 tbody tr:hover,
 tbody tr.selected {
   background: #faf9ff;
+  transform: translateX(3px);
 }
 
 tbody tr:last-child td {
@@ -869,6 +900,12 @@ tbody tr:last-child td {
   justify-content: space-between;
   gap: 12px;
   padding: 17px;
+  transition: box-shadow 220ms ease, transform 220ms cubic-bezier(.2,.8,.2,1);
+}
+
+.alert-card:hover {
+  box-shadow: 0 16px 32px rgba(70, 55, 135, 0.13);
+  transform: translateY(-4px);
 }
 
 .alert-card h3 {
@@ -903,7 +940,10 @@ tbody tr:last-child td {
   height: 48px;
   font-size: 26px;
   border-radius: 15px;
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1);
 }
+
+.alert-card:hover > b { transform: scale(1.08) rotate(-5deg); }
 
 .alert-card.missing { border-color: #e5dcff; background: linear-gradient(135deg, #fff, #f7f3ff); }
 .alert-card.missing h3 { color: #6f56dd; }

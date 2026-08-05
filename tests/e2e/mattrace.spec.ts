@@ -303,3 +303,27 @@ test("mascot and sidebar motion create lively hover feedback", async ({ page }) 
   expect(navAfter.transform).not.toBe(navBefore.transform);
   expect(navAfter.shadow).not.toBe(navBefore.shadow);
 });
+
+test("workspace cards and data rows provide presentation-ready motion", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+
+  const uploadAnimation = await page.locator(".upload-art").evaluate((element) => getComputedStyle(element).animationName);
+  expect(uploadAnimation).not.toBe("none");
+
+  for (const selector of [".summary-card", ".alert-card"]) {
+    const target = page.locator(selector).first();
+    const before = await target.evaluate((element) => ({ transform: getComputedStyle(element).transform, shadow: getComputedStyle(element).boxShadow }));
+    await target.hover();
+    await page.waitForTimeout(300);
+    const after = await target.evaluate((element) => ({ transform: getComputedStyle(element).transform, shadow: getComputedStyle(element).boxShadow }));
+    expect(after.transform).not.toBe(before.transform);
+    expect(after.shadow).not.toBe(before.shadow);
+  }
+
+  const row = page.locator("tbody tr").nth(1);
+  const rowBefore = await row.evaluate((element) => getComputedStyle(element).transform);
+  await row.hover();
+  await page.waitForTimeout(220);
+  expect(await row.evaluate((element) => getComputedStyle(element).transform)).not.toBe(rowBefore);
+});
