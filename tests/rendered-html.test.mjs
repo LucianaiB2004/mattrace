@@ -31,12 +31,21 @@ test("server-renders the MatTrace dashboard landmarks", async () => {
   const html = await response.text();
   assert.match(html, /<title>MatTrace/);
   assert.match(html, /材料文献数据提取与核验 Agent/);
-  assert.match(html, /上传文献/);
+  assert.match(html, /文档工作区/);
   assert.match(html, /Agent 工作进度/);
-  assert.match(html, /数据提取概览/);
+  assert.match(html, /分析结果与证据/);
   assert.match(html, /证据链预览/);
   assert.match(html, /https:\/\/ai\.chipcloud\.cc/);
   assert.match(html, /qwen3\.8-max/);
+  assert.match(html, /使用示例运行/);
+  assert.match(html, /开始真实分析/);
+  assert.match(html, /保存当前项目/);
+  assert.match(html, /恢复项目/);
+  assert.match(html, /文档工作区/);
+  assert.match(html, /分析结果与证据/);
+  assert.match(html, /导出预览/);
+  assert.match(html, /隐私与数据流/);
+  assert.match(html, /aria-live="polite"/);
 });
 
 test("removes starter preview metadata and dependencies", async () => {
