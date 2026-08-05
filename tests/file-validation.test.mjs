@@ -28,9 +28,10 @@ test("file validation rejects unsupported, oversized, and duplicate files with r
   ]);
 });
 
-test("file validation enforces the ten-file workspace cap", () => {
-  const existing = Array.from({ length: 9 }, (_, index) => file(`old-${index}.pdf`));
+test("file validation enforces the twenty-file workspace cap", () => {
+  const existing = Array.from({ length: 19 }, (_, index) => file(`old-${index}.pdf`));
   const result = validateFiles([file("new-a.pdf"), file("new-b.pdf")], existing);
   assert.equal(result.accepted.length, 1);
   assert.equal(result.rejected[0].code, "workspace-full");
+  assert.match(result.rejected[0].message, /20/);
 });

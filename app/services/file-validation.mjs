@@ -1,6 +1,6 @@
 export const SUPPORTED_EXTENSIONS = Object.freeze(["pdf", "docx", "txt", "md"]);
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
-export const MAX_FILES = 10;
+export const MAX_FILES = 20;
 
 function extensionOf(name) {
   return String(name ?? "").split(".").pop()?.toLowerCase() ?? "";
@@ -30,7 +30,7 @@ export function validateFiles(files, existing = []) {
       message = "同名且同大小的文件已存在";
     } else if (existing.length + accepted.length >= MAX_FILES) {
       code = "workspace-full";
-      message = "工作区最多保留 10 个文件";
+      message = "工作区最多保留 20 个文件";
     }
 
     if (code) rejected.push({ file, code, message });

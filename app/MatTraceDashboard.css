@@ -516,6 +516,10 @@
   background: white;
   cursor: pointer;
 }
+.file-chip-wrap { position: relative; min-width: 116px; }
+.file-chip-wrap > label { position: absolute; z-index: 2; top: 5px; left: 6px; display: flex; align-items: center; gap: 3px; color: #777d95; font-size: 9px; cursor: pointer; }
+.file-chip-wrap > label input { width: 13px; height: 13px; accent-color: var(--violet); }
+.file-chip-wrap .file-chip { width: 100%; padding-top: 25px; }
 
 .file-chip {
   display: flex;

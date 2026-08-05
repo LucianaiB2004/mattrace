@@ -217,6 +217,32 @@ test("bundled PDFs hydrate before entering a real AI request", async ({ page }) 
   expect(prompt).toContain("[第 28 页]");
 });
 
+test("document selection is independent from preview and scopes real analysis", async ({ page }) => {
+  let prompt = "";
+  await page.route("**/v1/chat/completions", async (route) => {
+    prompt = route.request().postDataJSON().messages.map((message: { content: string }) => message.content).join("\n");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ summary: "单篇分析完成", records: [{ material: "LLZTO", process: "TDTR", property: "热导率", value: 1.4, unit: "W m-1 K-1", conditions: { temperature: "室温" }, sourceDocument: "Solid Electrolytes 2021.pdf", page: 2, evidence: "thermal conductivity was 1.4 W m-1 K-1", confidence: "high" }] }) } }] }) });
+  });
+  await page.goto("/");
+  await waitForHydration(page);
+  await expect(page.getByText("已添加 3/20 · 已选择 3 篇")).toBeVisible();
+  const selectors = page.getByRole("checkbox", { name: /选择文档/ });
+  await selectors.nth(1).uncheck();
+  await selectors.nth(2).uncheck();
+  await expect(page.getByText("已添加 3/20 · 已选择 1 篇")).toBeVisible();
+  await page.locator(".file-chip").first().click();
+  await expect(page.getByRole("dialog", { name: "Solid Electrolytes 2021.pdf" })).toBeVisible();
+  await page.getByRole("button", { name: "关闭详情", exact: true }).click();
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  await page.getByRole("dialog", { name: "模型配置" }).getByLabel("API Key").fill("selection-key");
+  await page.getByRole("dialog", { name: "模型配置" }).getByRole("button", { name: "应用配置" }).click();
+  await page.getByRole("button", { name: "开始真实分析" }).click();
+  await expect(page.getByText(/真实分析完成/)).toBeVisible();
+  expect(prompt).toContain("Solid Electrolytes 2021.pdf");
+  expect(prompt).not.toContain("Superionic Discovery 2022.pdf");
+  expect(prompt).not.toContain("Lattice Dynamics 2024.pdf");
+});
+
 test("document title rename cascades through evidence, export, and project restore", async ({ page }) => {
   await page.goto("/");
   await waitForHydration(page);

@@ -70,6 +70,7 @@ export default function MatTraceDashboard() {
   const initialReport = useMemo(() => createExampleReport() as Report, []);
   const [activeNav, setActiveNav] = useState("首页");
   const [documents, setDocuments] = useState<ParsedDocument[]>(() => [...EXAMPLE_DOCUMENTS] as ParsedDocument[]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(() => new Set(EXAMPLE_DOCUMENTS.map((document) => document.id)));
   const [report, setReport] = useState<Report | null>(initialReport);
   const [selectedRecordId, setSelectedRecordId] = useState(initialReport.records[0].id);
   const [workflow, setWorkflow] = useState<Workflow>(() => ({ ...createWorkflowState(), phase: "success", mode: "example", activeStage: 5, documentCount: 3, reportId: "example-report" }));
@@ -135,6 +136,7 @@ export default function MatTraceDashboard() {
     }
     const next = [...existing, ...parsed];
     setDocuments(next);
+    setSelectedDocumentIds(new Set(next.map((document) => document.id)));
     setReport(null);
     setSelectedRecordId("");
     setWorkflow((state) => next.length
@@ -176,6 +178,7 @@ export default function MatTraceDashboard() {
     }
     const next = documents.filter((item) => item.id !== id);
     setDocuments(next);
+    setSelectedDocumentIds((current) => new Set([...current].filter((documentId) => documentId !== id)));
     if (!next.some((item) => item.example)) { setReport(null); setSelectedRecordId(""); }
     notify("文档已移除", "success");
   }
@@ -193,6 +196,7 @@ export default function MatTraceDashboard() {
   async function runExample() {
     if (isBusy) return;
     setDocuments([...EXAMPLE_DOCUMENTS] as ParsedDocument[]);
+    setSelectedDocumentIds(new Set(EXAMPLE_DOCUMENTS.map((document) => document.id)));
     setReport(null);
     setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_STARTED", mode: "example" }));
     for (const stage of [0, 1, 2, 3, 4, 5]) {
@@ -207,7 +211,8 @@ export default function MatTraceDashboard() {
   }
 
   async function runRealAnalysis() {
-    if (documents.length < 3) { notify("真实分析需要至少 3 篇已解析文档", "error"); setDrawer("documents"); return; }
+    const selectedDocuments = documents.filter((document) => selectedDocumentIds.has(document.id));
+    if (!selectedDocuments.length) { notify("请至少选择 1 篇文档", "error"); return; }
     if (!apiKey.trim()) { notify("请先在模型配置中输入 API Key", "error"); setSettingsOpen(true); return; }
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -215,7 +220,7 @@ export default function MatTraceDashboard() {
     setReport(null);
     setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_STARTED", mode: "real" }));
     try {
-      const analysisDocuments = await Promise.all(documents.map(hydrateDocument));
+      const analysisDocuments = await Promise.all(selectedDocuments.map(hydrateDocument));
       const next = await analyzeDocuments(
         { gateway, model, apiKey }, analysisDocuments, fetch, controller.signal,
         (stage: number) => setWorkflow((state) => transitionWorkflow(state, { type: "STAGE_CHANGED", stage })),
@@ -251,6 +256,7 @@ export default function MatTraceDashboard() {
       const snapshot = await createProjectStore().loadProject();
       if (!snapshot) { notify("没有找到已保存的项目", "info"); return; }
       setDocuments(snapshot.documents as ParsedDocument[]);
+      setSelectedDocumentIds(new Set(snapshot.documents.map((document: ParsedDocument) => document.id)));
       setReport(snapshot.report as Report | null);
       setGateway(snapshot.provider.gateway);
       setModel(snapshot.provider.model);
@@ -296,10 +302,10 @@ export default function MatTraceDashboard() {
 
         <div className="content-grid"><section className="main-column">
           <article className="card upload-card" id="documents" aria-labelledby="upload-title">
-            <div className="section-heading"><div><h2 id="upload-title">文档工作区 <span>（3–10 篇）</span></h2><p>PDF、DOCX、TXT、Markdown 均在浏览器本地解析</p></div><div className="run-actions"><button className="secondary-run" type="button" disabled={isBusy} onClick={runExample}>载入公开论文</button>{workflow.phase === "analyzing" ? <button className="run-button danger" type="button" onClick={cancelAnalysis}>取消分析</button> : <button className="run-button" type="button" disabled={isBusy} onClick={runRealAnalysis}>开始真实分析</button>}</div></div>
+            <div className="section-heading"><div><h2 id="upload-title">文档工作区 <span>（1–20 篇）</span></h2><p>PDF、DOCX、TXT、Markdown 均在浏览器本地解析</p></div><div className="run-actions"><button className="secondary-run" type="button" disabled={isBusy} onClick={runExample}>载入公开论文</button>{workflow.phase === "analyzing" ? <button className="run-button danger" type="button" onClick={cancelAnalysis}>取消分析</button> : <button className="run-button" type="button" disabled={isBusy} onClick={runRealAnalysis}>开始真实分析</button>}</div></div>
             <div className="mode-banner"><span className={workflow.mode === "real" ? "real" : "example"}>{workflow.mode === "real" ? "真实分析" : "公开论文"}</span><p>{workflow.phase === "error" ? workflow.error : workflow.phase === "cancelled" ? "分析已取消，可调整后重试" : report?.summary ?? "文档已就绪，等待开始分析"}</p><button type="button" onClick={() => setDrawer("privacy")}>隐私与数据流</button></div>
             <div className="upload-layout"><button className={`drop-zone ${isDragging ? "dragging" : ""}`} type="button" onClick={() => fileInputRef.current?.click()} onDragEnter={() => setIsDragging(true)} onDragLeave={() => setIsDragging(false)} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}><span className="upload-art" aria-hidden="true">⇧</span><strong>拖拽文件到这里，或点击上传</strong><small>支持 PDF、DOCX、TXT、MD（≤ 50MB）</small></button><input ref={fileInputRef} className="sr-only" type="file" multiple accept=".pdf,.docx,.txt,.md" onChange={handleFiles} />
-              <div className="file-tray"><div className="tray-heading"><p>已添加 {documents.length}/10</p><button type="button" onClick={() => { documents.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); }); previewUrlsRef.current.clear(); setDocuments([]); setReport(null); setSelectedRecordId(""); notify("工作区已清空", "success"); }}>清空</button></div><div className="file-list">{documents.slice(0, 5).map((file) => <button className="file-chip" key={file.id} title={`${file.name} · ${bytes(file.size)}`} type="button" onClick={() => void openDocument(file)}><span className={`file-type ${file.type}`}>{file.type.toUpperCase()}</span><small>{file.name.replace(/\.[^.]+$/, "")}</small><i>{file.pageCount}页</i></button>)}{documents.length < 10 && <button className="add-file" type="button" onClick={() => fileInputRef.current?.click()} aria-label="添加更多文献">+</button>}</div></div>
+              <div className="file-tray"><div className="tray-heading"><p>已添加 {documents.length}/20 · 已选择 {selectedDocumentIds.size} 篇</p><div><button type="button" onClick={() => setSelectedDocumentIds(new Set(documents.map((document) => document.id)))}>全选</button><button type="button" onClick={() => setSelectedDocumentIds(new Set())}>取消全选</button><button type="button" onClick={() => { documents.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); }); previewUrlsRef.current.clear(); setDocuments([]); setSelectedDocumentIds(new Set()); setReport(null); setSelectedRecordId(""); notify("工作区已清空", "success"); }}>清空</button></div></div><div className="file-list">{documents.map((file) => <div className="file-chip-wrap" key={file.id}><label><input type="checkbox" aria-label={`选择文档 ${file.name}`} checked={selectedDocumentIds.has(file.id)} onChange={(event) => setSelectedDocumentIds((current) => { const next = new Set(current); if (event.target.checked) next.add(file.id); else next.delete(file.id); return next; })} /><span>参与分析</span></label><button className="file-chip" title={`${file.name} · ${bytes(file.size)}`} type="button" onClick={() => void openDocument(file)}><span className={`file-type ${file.type}`}>{file.type.toUpperCase()}</span><small>{file.name.replace(/\.[^.]+$/, "")}</small><i>{file.pageCount}页</i></button></div>)}{documents.length < 20 && <button className="add-file" type="button" onClick={() => fileInputRef.current?.click()} aria-label="添加更多文献">+</button>}</div></div>
             </div>
           </article>
 
