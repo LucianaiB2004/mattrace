@@ -164,6 +164,37 @@ test("bundled literature is presented as PDF rather than example documents", asy
   await expect(dialog.locator("iframe, object, embed")).toBeVisible();
 });
 
+test("bundled literature exposes complete parsed pages beyond the cover", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.locator(".file-chip").first().click();
+  const dialog = page.getByRole("dialog", { name: "Solid Electrolytes 2021.pdf" });
+  await dialog.getByRole("button", { name: "解析文本" }).click();
+  await expect(dialog).toContainText("第 28 页");
+  await expect(dialog).toContainText("Management of heat during charging and discharging", { timeout: 15_000 });
+});
+
+test("bundled PDFs hydrate before entering a real AI request", async ({ page }) => {
+  let prompt = "";
+  await page.route("**/v1/chat/completions", async (route) => {
+    const payload = route.request().postDataJSON();
+    prompt = payload.messages.map((message: { content: string }) => message.content).join("\n");
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ summary: "公开论文真实分析完成", records: [{ material: "LLZTO", process: "TDTR", property: "热导率", value: 1.4, unit: "W m-1 K-1", conditions: { temperature: "室温" }, sourceDocument: "Solid Electrolytes 2021.pdf", page: 2, evidence: "thermal conductivities are 1.4 W m-1 K-1", confidence: "high" }], missingConditions: [], conflicts: [] }) } }] }) });
+  });
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  const settings = page.getByRole("dialog", { name: "模型配置" });
+  await settings.getByLabel("API Key").fill("bundled-runtime-key");
+  await settings.getByRole("button", { name: "应用配置" }).click();
+  await page.getByRole("button", { name: "开始真实分析" }).click();
+  await expect(page.getByText("真实分析完成，共提取 1 条数据")).toBeVisible({ timeout: 20_000 });
+  expect(prompt).toContain("Solid Electrolytes 2021.pdf");
+  expect(prompt).toContain("Superionic Discovery 2022.pdf");
+  expect(prompt).toContain("Lattice Dynamics 2024.pdf");
+  expect(prompt).toContain("[第 28 页]");
+});
+
 test("drag and drop accepts text while invalid files show an actionable error", async ({ page }) => {
   await page.goto("/");
   await waitForHydration(page);

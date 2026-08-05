@@ -1,9 +1,9 @@
 import { normalizeAnalysisResult } from "./analysis.mjs";
 
 export const EXAMPLE_DOCUMENTS = Object.freeze([
-  { id: "example-1", name: "Solid Electrolytes 2021.pdf", type: "pdf", size: 938_759, pageCount: 14, text: "Solid-state electrolyte thermal conductivity evidence", pages: [{ page: 1, text: "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity. arXiv:2103.08718." }], status: "ready", previewUrl: "./literature/2103.08718.pdf", example: true },
-  { id: "example-2", name: "Superionic Discovery 2022.pdf", type: "pdf", size: 840_807, pageCount: 10, text: "Machine-learning aided solid electrolyte discovery evidence", pages: [{ page: 1, text: "Machine Learning-Aided Discovery of Superionic Solid-State Electrolyte for Li-Ion Batteries. arXiv:2202.06763." }], status: "ready", previewUrl: "./literature/2202.06763.pdf", example: true },
-  { id: "example-3", name: "Lattice Dynamics 2024.pdf", type: "pdf", size: 712_474, pageCount: 16, text: "Lattice dynamics prediction evidence", pages: [{ page: 1, text: "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties. arXiv:2404.13858." }], status: "ready", previewUrl: "./literature/2404.13858.pdf", example: true },
+  { id: "example-1", name: "Solid Electrolytes 2021.pdf", type: "pdf", size: 938_759, pageCount: 28, text: "Solid-state electrolyte thermal conductivity evidence", pages: [{ page: 1, text: "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity. arXiv:2103.08718." }], status: "ready", previewUrl: "./literature/2103.08718.pdf", textUrl: "./literature/2103.08718.json", example: true },
+  { id: "example-2", name: "Superionic Discovery 2022.pdf", type: "pdf", size: 840_807, pageCount: 21, text: "Machine-learning aided solid electrolyte discovery evidence", pages: [{ page: 1, text: "Machine Learning-Aided Discovery of Superionic Solid-State Electrolyte for Li-Ion Batteries. arXiv:2202.06763." }], status: "ready", previewUrl: "./literature/2202.06763.pdf", textUrl: "./literature/2202.06763.json", example: true },
+  { id: "example-3", name: "Lattice Dynamics 2024.pdf", type: "pdf", size: 712_474, pageCount: 30, text: "Lattice dynamics prediction evidence", pages: [{ page: 1, text: "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties. arXiv:2404.13858." }], status: "ready", previewUrl: "./literature/2404.13858.pdf", textUrl: "./literature/2404.13858.json", example: true },
 ]);
 
 export function createExampleReport() {

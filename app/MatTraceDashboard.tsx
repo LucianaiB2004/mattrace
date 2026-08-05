@@ -12,6 +12,7 @@ import { createProjectSnapshot } from "./domain/project-snapshot.mjs";
 import { createWorkflowState, transitionWorkflow } from "./domain/workflow.mjs";
 import { analyzeDocuments } from "./services/ai-client.mjs";
 import { parseDocument } from "./services/document-parser.mjs";
+import { loadLiteraturePages } from "./services/literature-loader.mjs";
 import { validateFiles } from "./services/file-validation.mjs";
 import { createProjectStore } from "./services/project-store.mjs";
 import { DEFAULT_PROVIDER } from "./lib/mattrace-core.mjs";
@@ -20,7 +21,7 @@ import "./MatTraceDashboard.css";
 type ParsedDocument = {
   id: string; name: string; type: string; size: number; pageCount: number;
   text: string; pages: Array<{ page: number; text: string }>;
-  status: string; example?: boolean; previewUrl?: string;
+  status: string; example?: boolean; previewUrl?: string; textUrl?: string;
 };
 type RecordRow = {
   id: string; material: string; process: string; property: string; value: number;
@@ -87,7 +88,6 @@ export default function MatTraceDashboard() {
 
   const records = report?.records ?? [];
   const activeRecord = records.find((item) => item.id === selectedRecordId) ?? records[0] ?? null;
-  const realDocuments = documents.filter((item) => !item.example);
   const isBusy = workflow.phase === "parsing" || workflow.phase === "analyzing";
   const exportOutput = report?.records.length ? buildExport(exportFormat, report) : null;
   const materialCount = new Set(records.map((item) => item.material)).size;
@@ -146,6 +146,21 @@ export default function MatTraceDashboard() {
     void addFiles(Array.from(event.dataTransfer.files));
   }
 
+  async function hydrateDocument(document: ParsedDocument) {
+    if (!document.textUrl || document.pages.length === document.pageCount) return document;
+    const hydrated = await loadLiteraturePages(document) as ParsedDocument;
+    setDocuments((current) => current.map((item) => item.id === hydrated.id ? hydrated : item));
+    setDocumentPreview((current) => current?.id === hydrated.id ? hydrated : current);
+    return hydrated;
+  }
+
+  async function openDocument(document: ParsedDocument) {
+    setDocumentPreview(document);
+    setDocumentPreviewMode(document.type === "pdf" ? "pdf" : "text");
+    try { await hydrateDocument(document); }
+    catch (error) { notify(error instanceof Error ? error.message : `${document.name} 全文加载失败`, "error"); }
+  }
+
   function removeDocument(id: string) {
     const removed = documents.find((item) => item.id === id);
     if (removed?.previewUrl?.startsWith("blob:")) {
@@ -175,7 +190,7 @@ export default function MatTraceDashboard() {
   }
 
   async function runRealAnalysis() {
-    if (realDocuments.length < 3) { notify("真实分析需要至少 3 篇已解析文档", "error"); setDrawer("documents"); return; }
+    if (documents.length < 3) { notify("真实分析需要至少 3 篇已解析文档", "error"); setDrawer("documents"); return; }
     if (!apiKey.trim()) { notify("请先在模型配置中输入 API Key", "error"); setSettingsOpen(true); return; }
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -183,8 +198,9 @@ export default function MatTraceDashboard() {
     setReport(null);
     setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_STARTED", mode: "real" }));
     try {
+      const analysisDocuments = await Promise.all(documents.map(hydrateDocument));
       const next = await analyzeDocuments(
-        { gateway, model, apiKey }, realDocuments, fetch, controller.signal,
+        { gateway, model, apiKey }, analysisDocuments, fetch, controller.signal,
         (stage: number) => setWorkflow((state) => transitionWorkflow(state, { type: "STAGE_CHANGED", stage })),
       ) as Report;
       setReport(next);
@@ -266,7 +282,7 @@ export default function MatTraceDashboard() {
             <div className="section-heading"><div><h2 id="upload-title">文档工作区 <span>（3–10 篇）</span></h2><p>PDF、DOCX、TXT、Markdown 均在浏览器本地解析</p></div><div className="run-actions"><button className="secondary-run" type="button" disabled={isBusy} onClick={runExample}>载入公开论文</button>{workflow.phase === "analyzing" ? <button className="run-button danger" type="button" onClick={cancelAnalysis}>取消分析</button> : <button className="run-button" type="button" disabled={isBusy} onClick={runRealAnalysis}>开始真实分析</button>}</div></div>
             <div className="mode-banner"><span className={workflow.mode === "real" ? "real" : "example"}>{workflow.mode === "real" ? "真实分析" : "公开论文"}</span><p>{workflow.phase === "error" ? workflow.error : workflow.phase === "cancelled" ? "分析已取消，可调整后重试" : report?.summary ?? "文档已就绪，等待开始分析"}</p><button type="button" onClick={() => setDrawer("privacy")}>隐私与数据流</button></div>
             <div className="upload-layout"><button className={`drop-zone ${isDragging ? "dragging" : ""}`} type="button" onClick={() => fileInputRef.current?.click()} onDragEnter={() => setIsDragging(true)} onDragLeave={() => setIsDragging(false)} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}><span className="upload-art" aria-hidden="true">⇧</span><strong>拖拽文件到这里，或点击上传</strong><small>支持 PDF、DOCX、TXT、MD（≤ 50MB）</small></button><input ref={fileInputRef} className="sr-only" type="file" multiple accept=".pdf,.docx,.txt,.md" onChange={handleFiles} />
-              <div className="file-tray"><div className="tray-heading"><p>已添加 {documents.length}/10</p><button type="button" onClick={() => { documents.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); }); previewUrlsRef.current.clear(); setDocuments([]); setReport(null); setSelectedRecordId(""); notify("工作区已清空", "success"); }}>清空</button></div><div className="file-list">{documents.slice(0, 5).map((file) => <button className="file-chip" key={file.id} title={`${file.name} · ${bytes(file.size)}`} type="button" onClick={() => { setDocumentPreview(file); setDocumentPreviewMode(file.type === "pdf" ? "pdf" : "text"); }}><span className={`file-type ${file.type}`}>{file.type.toUpperCase()}</span><small>{file.name.replace(/\.[^.]+$/, "")}</small><i>{file.pageCount}页</i></button>)}{documents.length < 10 && <button className="add-file" type="button" onClick={() => fileInputRef.current?.click()} aria-label="添加更多文献">+</button>}</div></div>
+              <div className="file-tray"><div className="tray-heading"><p>已添加 {documents.length}/10</p><button type="button" onClick={() => { documents.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); }); previewUrlsRef.current.clear(); setDocuments([]); setReport(null); setSelectedRecordId(""); notify("工作区已清空", "success"); }}>清空</button></div><div className="file-list">{documents.slice(0, 5).map((file) => <button className="file-chip" key={file.id} title={`${file.name} · ${bytes(file.size)}`} type="button" onClick={() => void openDocument(file)}><span className={`file-type ${file.type}`}>{file.type.toUpperCase()}</span><small>{file.name.replace(/\.[^.]+$/, "")}</small><i>{file.pageCount}页</i></button>)}{documents.length < 10 && <button className="add-file" type="button" onClick={() => fileInputRef.current?.click()} aria-label="添加更多文献">+</button>}</div></div>
             </div>
           </article>
 
@@ -293,7 +309,7 @@ export default function MatTraceDashboard() {
       <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined}>
         {!documentPreview && drawer === "skill" && <SkillManager onNotify={notify} />}
         {documentPreview && <><div className="document-view-tabs">{documentPreview.type === "pdf" && <button className={documentPreviewMode === "pdf" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("pdf")}>PDF 原文</button>}<button className={documentPreviewMode === "text" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("text")}>解析文本</button></div>{documentPreview.type === "pdf" && documentPreviewMode === "pdf" ? (documentPreview.previewUrl ? <iframe className="pdf-frame" src={documentPreview.previewUrl} title={`${documentPreview.name} PDF 预览`} /> : <div className="drawer-empty">当前项目未保留此 PDF 原文件，请重新上传后预览</div>) : <div className="document-text-preview">{documentPreview.pages.map((page) => <section key={page.page}><strong>第 {page.page} 页</strong><p>{page.text || "本页没有可提取文本"}</p></section>)}</div>}<button className="drawer-danger" type="button" onClick={() => { removeDocument(documentPreview.id); setDocumentPreview(null); }}>移除此文档</button></>}
-        {!documentPreview && drawer === "documents" && <div className="drawer-list">{documents.map((doc) => <article key={doc.id}><span className={`file-type ${doc.type}`}>{doc.type.toUpperCase()}</span><div><strong>{doc.name}</strong><p>{bytes(doc.size)} · {doc.pageCount} 页 · {doc.example ? "公开 PDF" : "本地已解析"}</p></div><button type="button" onClick={() => { setDocumentPreview(doc); setDocumentPreviewMode(doc.type === "pdf" ? "pdf" : "text"); }}>预览</button><button type="button" onClick={() => removeDocument(doc.id)}>移除</button></article>)}</div>}
+        {!documentPreview && drawer === "documents" && <div className="drawer-list">{documents.map((doc) => <article key={doc.id}><span className={`file-type ${doc.type}`}>{doc.type.toUpperCase()}</span><div><strong>{doc.name}</strong><p>{bytes(doc.size)} · {doc.pageCount} 页 · {doc.example ? "公开 PDF" : "本地已解析"}</p></div><button type="button" onClick={() => void openDocument(doc)}>预览</button><button type="button" onClick={() => removeDocument(doc.id)}>移除</button></article>)}</div>}
         {!documentPreview && drawer === "records" && <div className="record-grid">{records.map((record) => <button key={record.id} type="button" onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }}><span>{record.material}</span><strong>{record.value} {record.unit}</strong><small>{record.property} · {record.sourceDocument}</small></button>)}</div>}
         {!documentPreview && drawer === "evidence" && (activeRecord ? <div className="evidence-detail"><div className="evidence-meta"><span>{activeRecord.material}</span><span>{activeRecord.property}</span><span>{activeRecord.value} {activeRecord.unit}</span><span>{activeRecord.confidence}</span></div><blockquote>{activeRecord.evidence}</blockquote><p><strong>来源：</strong>{activeRecord.sourceDocument} · 第 {activeRecord.page} 页</p><p><strong>制备：</strong>{activeRecord.process}</p><p><strong>条件：</strong>{activeRecord.conditionText}</p><div className="drawer-tabs">{records.map((record) => <button className={record.id === selectedRecordId ? "active" : ""} key={record.id} type="button" onClick={() => setSelectedRecordId(record.id)}>{record.id}</button>)}</div></div> : <div className="drawer-empty">暂无证据</div>)}
         {!documentPreview && drawer === "missing" && <div className="issue-list">{report?.missingConditions.length ? report.missingConditions.map((item) => <article key={item.id}><b>!</b><div><strong>{item.message}</strong><p>关联记录：{item.recordId}</p></div><button type="button" onClick={() => { setSelectedRecordId(item.recordId ?? ""); setDrawer("evidence"); }}>查看证据</button></article>) : <div className="drawer-empty">没有发现缺失条件</div>}</div>}
