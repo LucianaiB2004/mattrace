@@ -45,9 +45,9 @@ test("bundled literature mode, evidence navigation, and exports work end to end"
   await expect(page.getByRole("dialog", { name: "文档管理" })).toBeVisible();
   await page.getByRole("dialog", { name: "文档管理" }).getByRole("button", { name: "关闭详情" }).click();
 
-  await page.getByRole("button", { name: /查看 Li₇La₃Zr₂O₁₂ 的证据/ }).first().click();
+  await page.getByRole("button", { name: /查看 Li₆.₄La₃Zr₁.₄Ta₀.₆O₁₂ 的证据/ }).first().click();
   await page.getByRole("button", { name: "查看全部", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "证据链详情" })).toContainText("Adv. Mater. 2024.pdf");
+  await expect(page.getByRole("dialog", { name: "证据链详情" })).toContainText("Solid Electrolytes 2021.pdf");
   await page.getByRole("dialog", { name: "证据链详情" }).getByRole("button", { name: "关闭详情" }).click();
 
   await page.getByRole("button", { name: "Markdown" }).click();
