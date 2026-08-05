@@ -70,6 +70,7 @@ test("analysis posts document evidence and returns a normalized report", async (
   );
 
   assert.equal(requestBody.model, "qwen3.8-max");
+  assert.equal(requestBody.max_tokens, 512);
   assert.equal(requestBody.response_format.type, "json_object");
   assert.match(requestBody.messages[1].content, /paper\.txt/);
   assert.equal(result.records[0].normalizedValue, 0.0012);

@@ -50,6 +50,14 @@ npm install
 npm run dev
 ```
 
+若所用 OpenAI-compatible 网关的 POST 响应没有浏览器 CORS 头，可在另一个终端运行仅限 localhost 的固定上游代理：
+
+```bash
+npm run proxy:ai
+```
+
+随后把页面中的 API 网关临时改为 `http://127.0.0.1:8788`。代理不记录或保存 API Key 与文献正文，仅用于本机演示；GitHub Pages 仍要求所选网关原生支持浏览器 CORS。
+
 打开 `http://localhost:3000`。无需 Key 可直接点击“使用示例运行”；真实分析需在“模型配置”中临时输入自己的 Key。
 
 ## 构建与验证

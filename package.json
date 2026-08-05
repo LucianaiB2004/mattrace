@@ -11,6 +11,7 @@
     "build": "vinext build",
     "build:static": "npm run build && node scripts/static-export.mjs",
     "start": "vinext start",
+    "proxy:ai": "node scripts/local-ai-proxy.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:core": "node --test tests/mattrace-core.test.mjs",
     "test:e2e": "playwright test",

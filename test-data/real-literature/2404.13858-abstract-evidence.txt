@@ -1,0 +1,5 @@
+Source: arXiv:2404.13858
+Title: Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties
+Authors: Jiyeon Kim et al.
+
+Recently, machine-learning approaches have accelerated computational materials design and the search for advanced solid electrolytes. We compiled 14 phonon-related descriptors from first-principles phonon calculations along with 16 descriptors related to structure and electronic properties. Our logistic regression classifiers exhibit an accuracy of 93 %, while the random forest regression model yields a root mean square error of 1.179 S/cm and R2 of 0.710. We applied our prediction model to screen 264 Li-containing materials and identified 11 promising candidates as potential superionic conductors.

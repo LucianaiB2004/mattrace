@@ -66,17 +66,17 @@ export function normalizeAnalysisResult(input) {
   });
 
   const missingConditions = Array.isArray(input.missingConditions)
-    ? input.missingConditions.map((item, index) => {
+    ? input.missingConditions.flatMap((item, index) => {
         const recordIndex = Number(item?.recordIndex);
         if (!Number.isInteger(recordIndex) || !records[recordIndex]) {
-          throw new Error(`第 ${index + 1} 条缺失条件未关联有效记录`);
+          return [];
         }
-        return {
+        return [{
           id: `missing-${index + 1}`,
           recordId: records[recordIndex].id,
           field: requiredText(item?.field, `第 ${index + 1} 条缺失条件缺少字段`),
           message: requiredText(item?.message, `第 ${index + 1} 条缺失条件缺少说明`),
-        };
+        }];
       })
     : [];
 

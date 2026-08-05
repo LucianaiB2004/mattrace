@@ -43,3 +43,4 @@ yarn-error.log*
 /.artifacts/
 /test-results/
 /playwright-report/
+/test-data/real-literature/*.pdf

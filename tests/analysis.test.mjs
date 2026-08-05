@@ -47,6 +47,19 @@ test("normalizeAnalysisResult creates evidence-rich records and linked alerts", 
   assert.equal(result.summary, "提取完成");
 });
 
+test("normalizeAnalysisResult ignores orphaned model alerts without discarding valid records", () => {
+  const result = normalizeAnalysisResult({
+    records: [{
+      material: "LLZO", process: "固相烧结", property: "离子电导率", value: 1.2,
+      unit: "mS/cm", conditions: {}, sourceDocument: "paper.pdf", page: 1,
+      evidence: "LLZO reached 1.2 mS/cm.", confidence: "high",
+    }],
+    missingConditions: [{ recordIndex: 9, field: "temperature", message: "温度缺失" }],
+  });
+  assert.equal(result.records.length, 1);
+  assert.deepEqual(result.missingConditions, []);
+});
+
 test("normalizeAnalysisResult rejects records without traceable evidence", () => {
   assert.throws(
     () => normalizeAnalysisResult({ records: [{ ...baseRecord, evidence: "" }] }),
