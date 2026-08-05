@@ -340,7 +340,8 @@
 .section-heading p {
   margin: 4px 0 0;
   color: #979cb1;
-  font-size: 10px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .run-button,
@@ -356,7 +357,7 @@
 .run-button {
   padding: 10px 15px;
   border-radius: 11px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .run-button span {
@@ -401,12 +402,12 @@
 }
 
 .drop-zone strong {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .drop-zone small {
   color: #9499b0;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .file-tray {
@@ -420,7 +421,7 @@
 .file-tray > p {
   margin: 0 0 12px;
   color: #7c829b;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .file-list {
@@ -453,7 +454,7 @@
   width: 100%;
   overflow: hidden;
   color: #444b67;
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -494,7 +495,7 @@
 .progress-count {
   padding: 6px 9px;
   color: #6956e7;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   border-radius: 99px;
   background: #f2f0ff;
@@ -558,13 +559,13 @@
 }
 
 .stage strong {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .stage small {
   margin-top: 4px;
   color: #9095aa;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .stage.active strong,
@@ -579,7 +580,7 @@
 .text-button {
   padding: 5px 0;
   color: #6652df;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   border: 0;
   background: transparent;
@@ -611,7 +612,7 @@
 .summary-card small {
   margin-bottom: 4px;
   color: #777e97;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .summary-card strong {
@@ -648,7 +649,7 @@ table {
   width: 100%;
   min-width: 770px;
   border-collapse: collapse;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 th,
@@ -660,7 +661,7 @@ td {
 
 th {
   color: #626982;
-  font-size: 8px;
+  font-size: 11px;
   background: #f8f9fd;
 }
 
@@ -684,7 +685,7 @@ tbody tr:last-child td {
   justify-content: center;
   padding: 4px 7px;
   border-radius: 99px;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .confidence.高 { color: #23866d; background: #e7f8f2; }
@@ -696,7 +697,7 @@ tbody tr:last-child td {
   justify-content: center;
   gap: 12px;
   color: #8990a8;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .workspace-footer i {
@@ -708,7 +709,7 @@ tbody tr:last-child td {
 .evidence-card blockquote {
   margin: 14px 0 9px;
   color: #464d69;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -1141,31 +1142,31 @@ tbody tr:last-child td {
   background: #faf9ff;
 }
 
-.mode-banner > span { padding: 4px 8px; border-radius: 999px; font-size: 9px; font-weight: 800; }
+.mode-banner > span { padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
 .mode-banner > span.example { color: #7158df; background: #eee9ff; }
 .mode-banner > span.real { color: #098e70; background: #dff8f0; }
-.mode-banner p { margin: 0; color: #666d88; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mode-banner button, .tray-heading button { border: 0; color: #6f58e8; background: transparent; font-size: 10px; font-weight: 700; cursor: pointer; }
+.mode-banner p { margin: 0; color: #666d88; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mode-banner button, .tray-heading button { border: 0; color: #6f58e8; background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
 
 .drop-zone.dragging { border-color: #7058f2; background: #f1edff; transform: translateY(-2px); }
 .tray-heading { justify-content: space-between; }
 .tray-heading p { margin: 0; }
-.file-chip i { display: block; margin-top: 2px; color: #9ca2b7; font-size: 8px; font-style: normal; }
+.file-chip i { display: block; margin-top: 2px; color: #9ca2b7; font-size: 10px; font-style: normal; }
 .skill-pill { cursor: pointer; }
 
 button.summary-card { width: 100%; text-align: left; cursor: pointer; }
 button.alert-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
 .empty-cell { padding: 28px !important; color: #969bb0 !important; text-align: center; }
 .empty-panel { display: grid; min-height: 210px; place-items: center; color: #9a9eb2; font-size: 11px; text-align: center; }
-.phase-pill { padding: 5px 9px; border-radius: 999px; color: #7561e9; background: #efecff; font-size: 9px; font-weight: 800; }
+.phase-pill { padding: 5px 9px; border-radius: 999px; color: #7561e9; background: #efecff; font-size: 11px; font-weight: 800; }
 .phase-pill.error { color: #e55665; background: #fff0f1; }
 .phase-pill.success { color: #13866f; background: #e5f8f1; }
 
 .session-card { padding: 17px 18px; }
 .session-card h3 { margin: 0; font-size: 13px; }
-.session-card p { margin: 7px 0 12px; color: #8b90a6; font-size: 9px; line-height: 1.5; }
+.session-card p { margin: 7px 0 12px; color: #8b90a6; font-size: 12px; line-height: 1.6; }
 .session-card div { display: flex; gap: 7px; }
-.session-card button { flex: 1; padding: 7px; border: 1px solid #e4e5ef; border-radius: 8px; color: #686f89; background: #fff; font-size: 9px; cursor: pointer; }
+.session-card button { flex: 1; padding: 8px; border: 1px solid #e4e5ef; border-radius: 8px; color: #686f89; background: #fff; font-size: 11px; cursor: pointer; }
 
 .privacy-box { margin-top: 15px; padding: 12px; border: 1px solid #e8e5f7; border-radius: 11px; background: #faf9ff; }
 .privacy-box strong { color: #42377d; font-size: 11px; }

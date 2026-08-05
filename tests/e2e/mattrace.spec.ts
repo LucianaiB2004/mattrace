@@ -269,3 +269,18 @@ test("every sidebar destination performs its intended navigation action", async 
   await expect(settings).toHaveClass(/active/);
   await expect(page.getByRole("dialog", { name: "模型配置" })).toBeVisible();
 });
+
+test("body typography is readable without breaking the mobile viewport", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  const fontSize = (selector: string) => page.locator(selector).first().evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(await fontSize(".section-heading p")).toBeGreaterThanOrEqual(13);
+  expect(await fontSize("tbody td")).toBeGreaterThanOrEqual(12);
+  expect(await fontSize(".evidence-card blockquote")).toBeGreaterThanOrEqual(13);
+  expect(await fontSize(".mode-banner p")).toBeGreaterThanOrEqual(11);
+  expect(await fontSize(".session-card p")).toBeGreaterThanOrEqual(11);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+});
