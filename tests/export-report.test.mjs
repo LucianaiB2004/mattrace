@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildExport } from "../app/domain/export-report.mjs";
+import { buildAuditExport, buildExport } from "../app/domain/export-report.mjs";
 
 const report = {
   summary: "共提取 1 条数据",
@@ -53,4 +53,18 @@ test("Markdown export contains summary, evidence, missing conditions, and confli
 test("export rejects an empty report and unknown formats", () => {
   assert.throws(() => buildExport("json", { records: [] }), /暂无可导出的分析结果/);
   assert.throws(() => buildExport("xml", report), /不支持的导出格式/);
+});
+
+test("audit exports coverage matrix and comparability passports", () => {
+  const audited = {
+    ...report,
+    coverageMatrix: [{ documentName: "a.pdf", status: "extracted", pageCount: 3, checkedPages: [1, 2, 3], recordCount: 1, reason: "" }],
+    comparabilityPassports: [{ recordId: "record-1", material: "LLZO", property: "conductivity", sourceDocument: "a.pdf", comparable: true, scores: { evidence: 35, completeness: 25, conditions: 20, comparability: 20, total: 100 }, reasons: [] }],
+  };
+  const coverage = buildAuditExport("coverage", audited);
+  const passports = buildAuditExport("passports", audited);
+  assert.equal(coverage.filename, "coverage-matrix.csv");
+  assert.match(coverage.content, /a\.pdf,extracted/);
+  assert.equal(passports.filename, "comparability-passports.jsonl");
+  assert.equal(JSON.parse(passports.content).scores.total, 100);
 });

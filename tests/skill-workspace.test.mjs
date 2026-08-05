@@ -32,10 +32,12 @@ test("Skill workspace loads the competition Skill and persists an edited version
 
 test("complete workspace exposes editable contracts, examples, and core code", () => {
   const workspace = loadSkillWorkspace(memoryStorage());
-  assert.equal(workspace.files.length, 11);
-  assert.deepEqual(workspace.files.filter((file) => file.editable).map((file) => file.path), ["SKILL.md", "agents/openai.yaml", "references/output-schema.md"]);
+  assert.equal(workspace.files.length, 14);
+  assert.deepEqual(workspace.files.filter((file) => file.editable).map((file) => file.path), ["SKILL.md", "agents/openai.yaml", "references/output-schema.md", "references/coverage-and-comparability.md"]);
   assert.ok(SKILL_FILES.some((file) => file.path === "examples/records.jsonl"));
   assert.ok(SKILL_FILES.some((file) => file.path === "scripts/extract-evidence.mjs"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "examples/coverage-matrix.csv"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "examples/comparability-passports.jsonl"));
 });
 
 test("workspace persists editable files and rejects read-only or secret content", () => {

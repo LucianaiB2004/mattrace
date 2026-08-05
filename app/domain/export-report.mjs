@@ -106,3 +106,21 @@ export function buildExport(format, report) {
   }
   throw new Error(`不支持的导出格式：${format}`);
 }
+
+export function buildAuditExport(format, report) {
+  if (format === "coverage") {
+    const rows = [
+      "文档,状态,总页数,已检查页,记录数,说明",
+      ...(report?.coverageMatrix ?? []).map((row) => [row.documentName, row.status, row.pageCount, row.checkedPages?.join("|"), row.recordCount, row.reason].map(csvCell).join(",")),
+    ];
+    return { filename: "coverage-matrix.csv", mime: "text/csv", content: `\uFEFF${rows.join("\r\n")}` };
+  }
+  if (format === "passports") {
+    return {
+      filename: "comparability-passports.jsonl",
+      mime: "application/x-ndjson",
+      content: (report?.comparabilityPassports ?? []).map((item) => JSON.stringify(item)).join("\n"),
+    };
+  }
+  throw new Error(`不支持的审计导出格式：${format}`);
+}

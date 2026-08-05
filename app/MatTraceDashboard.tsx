@@ -9,16 +9,16 @@ import PdfReader from "./components/PdfReader";
 import DocumentTextViewer from "./components/DocumentTextViewer";
 import ToastRegion, { type Toast } from "./components/ToastRegion";
 import { EXAMPLE_DOCUMENTS, createExampleReport } from "./domain/example-data.mjs";
-import { buildExport } from "./domain/export-report.mjs";
-import { createProjectSnapshot } from "./domain/project-snapshot.mjs";
+import { buildAuditExport, buildExport } from "./domain/export-report.mjs";
+import { buildEvidenceAudit } from "./domain/evidence-audit.mjs";
 import { renameDocument } from "./domain/document-workspace.mjs";
 import { loadProvider, saveProvider } from "./domain/provider-storage.mjs";
 import { createWorkflowState, transitionWorkflow } from "./domain/workflow.mjs";
-import { analyzeDocuments } from "./services/ai-client.mjs";
+import { analyzeDocument } from "./services/ai-client.mjs";
+import { analyzeDocumentBatch } from "./services/batch-analysis.mjs";
 import { parseDocument } from "./services/document-parser.mjs";
 import { loadLiteraturePages } from "./services/literature-loader.mjs";
 import { validateFiles } from "./services/file-validation.mjs";
-import { createProjectStore } from "./services/project-store.mjs";
 import { DEFAULT_PROVIDER } from "./lib/mattrace-core.mjs";
 import "./MatTraceDashboard.css";
 
@@ -34,7 +34,9 @@ type RecordRow = {
   page: number | string; evidence: string; confidence: "high" | "medium" | "low";
 };
 type AlertItem = { id: string; recordId?: string; recordIds?: string[]; message: string; field?: string; differencePercent?: number | null };
-type Report = { records: RecordRow[]; missingConditions: AlertItem[]; conflicts: AlertItem[]; summary: string; generatedAt: string };
+type CoverageRow = { documentId: string; documentName: string; status: string; pageCount: number; checkedPages: number[]; recordCount: number; reason: string };
+type Passport = { recordId: string; material: string; property: string; sourceDocument: string; comparable: boolean; scores: { total: number }; reasons: string[] };
+type Report = { records: RecordRow[]; missingConditions: AlertItem[]; conflicts: AlertItem[]; summary: string; generatedAt: string; coverageMatrix?: CoverageRow[]; comparabilityPassports?: Passport[] };
 type Workflow = { phase: string; mode: string | null; activeStage: number; documentCount: number; reportId: string | null; error: string | null };
 type Drawer = "skill" | "documents" | "records" | "evidence" | "missing" | "conflicts" | "export" | "privacy" | null;
 
@@ -83,6 +85,7 @@ export default function MatTraceDashboard() {
   const [documentPreviewMode, setDocumentPreviewMode] = useState<"pdf" | "text">("pdf");
   const [exportFormat, setExportFormat] = useState<"json" | "csv" | "markdown">("markdown");
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [analysisProgress, setAnalysisProgress] = useState({ completed: 0, total: 0, current: "" });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -220,15 +223,30 @@ export default function MatTraceDashboard() {
     setReport(null);
     setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_STARTED", mode: "real" }));
     try {
-      const analysisDocuments = await Promise.all(selectedDocuments.map(hydrateDocument));
-      const next = await analyzeDocuments(
-        { gateway, model, apiKey }, analysisDocuments, fetch, controller.signal,
-        (stage: number) => setWorkflow((state) => transitionWorkflow(state, { type: "STAGE_CHANGED", stage })),
-      ) as Report;
+      setAnalysisProgress({ completed: 0, total: selectedDocuments.length, current: "准备逐篇分析" });
+      let completed = 0;
+      const outcomes = await analyzeDocumentBatch({ gateway, model, apiKey }, selectedDocuments, {
+        concurrency: 2,
+        signal: controller.signal,
+        analyze: async (config: object, document: ParsedDocument, fetchImpl: typeof fetch, signal: AbortSignal) => analyzeDocument(config, await hydrateDocument(document), fetchImpl, signal),
+        onProgress: ({ document, status }: { document: ParsedDocument; status: string }) => {
+          if (status !== "analyzing" && status !== "retrying") completed = Math.min(selectedDocuments.length, completed + 1);
+          setAnalysisProgress({ completed, total: selectedDocuments.length, current: status === "analyzing" ? `正在分析 ${document.name}` : `${document.name}：${status}` });
+          const stage = Math.min(5, Math.floor((completed / selectedDocuments.length) * 6));
+          setWorkflow((state) => transitionWorkflow(state, { type: "STAGE_CHANGED", stage }));
+        },
+      });
+      const next = buildEvidenceAudit(outcomes) as Report;
       setReport(next);
       setSelectedRecordId(next.records[0]?.id ?? "");
+      if (controller.signal.aborted) {
+        setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_CANCELLED" }));
+        notify("分析已取消，已完成结果和文档状态均已保留", "info");
+        return;
+      }
       setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_SUCCEEDED", reportId: `report-${Date.now()}` }));
-      notify(`真实分析完成，共提取 ${next.records.length} 条数据`, "success");
+      const failed = outcomes.filter((item: { status: string }) => item.status === "failed").length;
+      notify(`真实分析完成：${selectedDocuments.length} 篇均有状态，共提取 ${next.records.length} 条数据${failed ? `，${failed} 篇需重试` : ""}`, failed ? "info" : "success");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_CANCELLED" }));
@@ -242,34 +260,6 @@ export default function MatTraceDashboard() {
   }
 
   function cancelAnalysis() { abortRef.current?.abort(); }
-
-  async function saveProject() {
-    try {
-      const snapshot = createProjectSnapshot({ documents, report, gateway, model, selectedRecordId });
-      await createProjectStore().saveProject(snapshot);
-      notify("当前项目已安全保存，不包含 API Key", "success");
-    } catch (error) { notify(error instanceof Error ? error.message : "项目保存失败", "error"); }
-  }
-
-  async function restoreProject() {
-    try {
-      const snapshot = await createProjectStore().loadProject();
-      if (!snapshot) { notify("没有找到已保存的项目", "info"); return; }
-      setDocuments(snapshot.documents as ParsedDocument[]);
-      setSelectedDocumentIds(new Set(snapshot.documents.map((document: ParsedDocument) => document.id)));
-      setReport(snapshot.report as Report | null);
-      setGateway(snapshot.provider.gateway);
-      setModel(snapshot.provider.model);
-      setSelectedRecordId(snapshot.selectedRecordId ?? snapshot.report?.records?.[0]?.id ?? "");
-      setWorkflow({ ...createWorkflowState(), phase: snapshot.report ? "success" : "ready", documentCount: snapshot.documents.length, activeStage: snapshot.report ? 5 : 0, reportId: snapshot.report ? "restored-report" : null } as Workflow);
-      notify("项目已恢复，API Key 仍为空", "success");
-    } catch (error) { notify(error instanceof Error ? error.message : "项目恢复失败", "error"); }
-  }
-
-  async function deleteSavedProject() {
-    try { await createProjectStore().deleteProject(); notify("已保存项目已删除", "success"); }
-    catch (error) { notify(error instanceof Error ? error.message : "删除失败", "error"); }
-  }
 
   function openExport(format: "json" | "csv" | "markdown") { setExportFormat(format); setDrawer("export"); }
   async function copyExport() {
@@ -311,6 +301,8 @@ export default function MatTraceDashboard() {
 
           <article className="card progress-card" aria-labelledby="progress-title"><div className="section-heading compact"><div><h2 id="progress-title">Agent 工作进度</h2><p>每一步都有显式状态，失败后可保留文档重试</p></div><span className={`phase-pill ${workflow.phase}`}>{workflow.phase === "analyzing" ? `${workflow.activeStage + 1}/6 进行中` : workflow.phase === "success" ? "6/6 已完成" : workflow.phase === "parsing" ? "解析中" : workflow.phase === "error" ? "需要处理" : "等待运行"}</span></div><div className="stage-track">{stageLabels.map((label, index) => { const status = workflow.phase === "success" || (workflow.phase === "analyzing" && index < workflow.activeStage) ? "complete" : workflow.phase === "analyzing" && index === workflow.activeStage ? "active" : "pending"; return <div className={`stage ${status}`} key={label}><div className="stage-top"><span className="stage-icon">{stageIcons[index]}</span>{index < 5 && <i />}</div><strong>{label}</strong><small>{status === "complete" ? "已完成" : status === "active" ? "进行中…" : "等待中"}</small></div>; })}</div></article>
 
+          {(workflow.phase === "analyzing" || report?.coverageMatrix) && <article className="card audit-card"><div className="section-heading compact"><div><h2>证据覆盖与可比性审计</h2><p>{workflow.phase === "analyzing" ? `${analysisProgress.current} · ${analysisProgress.completed}/${analysisProgress.total}` : "每篇文档均有处理结论，每条证据均有可解释评分"}</p></div>{report?.coverageMatrix && <div className="audit-downloads"><button type="button" onClick={() => download(buildAuditExport("coverage", report))}>覆盖矩阵 CSV</button><button type="button" onClick={() => download(buildAuditExport("passports", report))}>可比性护照 JSONL</button></div>}</div>{report?.coverageMatrix && <div className="coverage-grid">{report.coverageMatrix.map((row) => <article key={row.documentId} className={row.status}><span>{row.status === "extracted" ? "✓" : row.status === "no_evidence" ? "○" : row.status === "failed" ? "!" : "×"}</span><div><strong>{row.documentName}</strong><small>{row.checkedPages.length}/{row.pageCount} 页已核查 · {row.recordCount} 条证据</small>{row.reason && <p>{row.reason}</p>}</div></article>)}</div>}{report?.comparabilityPassports?.length ? <div className="passport-strip">{report.comparabilityPassports.slice(0, 6).map((passport) => <div key={passport.recordId}><b>{passport.scores.total}</b><span>{passport.material} · {passport.property}</span><small>{passport.comparable ? "可比较" : passport.reasons[0]}</small></div>)}</div> : null}</article>}
+
           <article className="card data-card" id="results" aria-labelledby="overview-title"><div className="section-heading compact"><div><h2 id="overview-title">分析结果与证据</h2><p>点击数据行可查看原文、页码和来源文档</p></div><button className="text-button" type="button" onClick={() => setDrawer("records")}>查看全部数据 →</button></div><div className="summary-grid">{summaryCards.map((item) => <button className={`summary-card ${item.tone}`} key={item.label} type="button" onClick={() => setDrawer(item.drawer)}><span><small>{item.label}</small><strong>{item.value}</strong></span><b aria-hidden="true">{item.icon}</b></button>)}</div>
             <div className="table-wrap"><table><thead><tr><th>材料体系</th><th>制备工艺</th><th>性能指标</th><th>数值（单位）</th><th>测试条件</th><th>来源</th><th>可信度</th></tr></thead><tbody>{records.length ? records.slice(0, 5).map((record) => <tr className={selectedRecordId === record.id ? "selected" : ""} key={record.id} onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { setSelectedRecordId(record.id); setDrawer("evidence"); } }}><td>{record.material}</td><td>{record.process}</td><td>{record.property}</td><td>{record.value} {record.unit}</td><td>{record.conditionText}</td><td>{record.sourceDocument} · P.{record.page}</td><td><span className={`confidence ${record.confidence}`}>{record.confidence === "high" ? "高" : record.confidence === "medium" ? "中" : "低"}</span></td></tr>) : <tr><td colSpan={7} className="empty-cell">暂无结果，请载入公开论文或完成真实分析</td></tr>}</tbody></table></div>
           </article>
@@ -322,7 +314,6 @@ export default function MatTraceDashboard() {
           <button className="alert-card missing" type="button" onClick={() => setDrawer("missing")}><div><h3>缺失条件提醒 <span>{report?.missingConditions.length ?? 0}</span></h3><p>{report?.missingConditions[0]?.message ?? "暂无缺失条件"}</p></div><b aria-hidden="true">⚗</b></button>
           <button className="alert-card conflict" id="conflicts" type="button" onClick={() => setDrawer("conflicts")}><div><h3>冲突检测提醒 <span>{report?.conflicts.length ?? 0}</span></h3><p>{report?.conflicts[0]?.message ?? "暂无数值冲突"}</p></div><b aria-hidden="true">△</b></button>
           <article className="card export-card" id="export"><div className="section-heading compact"><div><h2>导出报告</h2></div><button className="text-button" type="button" onClick={() => setDrawer("export")}>导出预览</button></div><div className="export-actions">{(["json", "csv", "markdown"] as const).map((format) => <button type="button" disabled={!report?.records.length} onClick={() => openExport(format)} key={format}><b>{format === "json" ? "⌘" : format === "csv" ? "▦" : "▤"}</b><span>{format === "markdown" ? "Markdown" : format.toUpperCase()}</span></button>)}</div></article>
-          <article className="card session-card"><h3>项目与隐私</h3><p>仅在你点击保存时写入本浏览器，永不包含 API Key。</p><div><button type="button" onClick={saveProject}>保存</button><button type="button" onClick={restoreProject}>恢复</button><button type="button" onClick={deleteSavedProject}>删除存档</button></div></article>
         </aside></div>
       </section>
 
@@ -338,7 +329,7 @@ export default function MatTraceDashboard() {
         {!documentPreview && drawer === "missing" && <div className="issue-list">{report?.missingConditions.length ? report.missingConditions.map((item) => <article key={item.id}><b>!</b><div><strong>{item.message}</strong><p>关联记录：{item.recordId}</p></div><button type="button" onClick={() => { setSelectedRecordId(item.recordId ?? ""); setDrawer("evidence"); }}>查看证据</button></article>) : <div className="drawer-empty">没有发现缺失条件</div>}</div>}
         {!documentPreview && drawer === "conflicts" && <div className="issue-list conflict-list">{report?.conflicts.length ? report.conflicts.map((item) => <article key={item.id}><b>△</b><div><strong>{item.message}</strong><p>相关记录：{item.recordIds?.join("、")} · 差异 {item.differencePercent ?? "待核验"}%</p></div><button type="button" onClick={() => { setSelectedRecordId(item.recordIds?.[0] ?? ""); setDrawer("evidence"); }}>核对来源</button></article>) : <div className="drawer-empty">没有发现跨文献数值冲突</div>}</div>}
         {!documentPreview && drawer === "export" && <div className="export-workspace"><div className="format-tabs">{(["json", "csv", "markdown"] as const).map((format) => <button className={exportFormat === format ? "active" : ""} type="button" key={format} onClick={() => setExportFormat(format)}>{format === "markdown" ? "Markdown" : format.toUpperCase()}</button>)}</div>{exportOutput ? <><pre>{exportOutput.content}</pre><div className="drawer-actions"><button type="button" onClick={copyExport}>复制内容</button><button className="primary-button" type="button" onClick={() => download(exportOutput)}>下载 {exportOutput.filename}</button></div></> : <div className="drawer-empty">暂无可导出的分析结果</div>}</div>}
-        {!documentPreview && drawer === "privacy" && <div className="privacy-detail"><section><b>1</b><div><h3>浏览器本地处理</h3><p>原始 PDF、DOCX、TXT 与 Markdown 在当前浏览器解析，不上传到 MatTrace 服务器。</p></div></section><section><b>2</b><div><h3>模型请求内容</h3><p>点击真实分析后，仅向你配置的 API 发送文档名、页码和解析后的文本。</p></div></section><section><b>3</b><div><h3>API Key</h3><p>Key 只存在于 React 内存，页面刷新即清除；不会进入 IndexedDB、导出、日志或 URL。</p></div></section><section><b>4</b><div><h3>项目保存</h3><p>只有主动点击保存才写入 IndexedDB，内容限于文档解析结果、分析报告和公开模型配置。</p></div></section></div>}
+        {!documentPreview && drawer === "privacy" && <div className="privacy-detail"><section><b>1</b><div><h3>浏览器本地处理</h3><p>原始 PDF、DOCX、TXT 与 Markdown 在当前浏览器解析，不上传到 MatTrace 服务器。</p></div></section><section><b>2</b><div><h3>模型请求内容</h3><p>点击真实分析后，仅向你配置的 API 逐篇发送文档名、页码和解析后的文本。</p></div></section><section><b>3</b><div><h3>API Key</h3><p>Key 在你应用配置后保存在当前浏览器 localStorage，不会进入项目快照、Skill、导出、日志或 URL；可在模型配置中清除。</p></div></section><section><b>4</b><div><h3>Skill 运行</h3><p>每篇请求都注入 material-evidence-extractor 的运行契约，并生成覆盖矩阵与可比性护照。</p></div></section></div>}
       </DetailsDrawer>
     </main>
   );

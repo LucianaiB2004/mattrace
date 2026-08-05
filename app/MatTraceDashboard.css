@@ -679,6 +679,25 @@
   margin-bottom: 15px;
 }
 
+.audit-card { overflow: hidden; }
+.audit-downloads { display: flex; gap: 8px; }
+.audit-downloads button { border: 1px solid #ddd9f8; border-radius: 9px; padding: 8px 10px; color: #654ee8; background: #faf9ff; font: inherit; font-size: 11px; cursor: pointer; }
+.coverage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 14px; }
+.coverage-grid article { display: flex; gap: 10px; align-items: flex-start; min-width: 0; padding: 11px; border: 1px solid #e7e5f3; border-radius: 11px; background: #fbfbfe; }
+.coverage-grid article > span { display: grid; place-items: center; width: 22px; height: 22px; flex: 0 0 auto; border-radius: 50%; color: #fff; background: #7660ed; }
+.coverage-grid article.no_evidence > span { background: #9ba3b7; }
+.coverage-grid article.failed > span { background: #ee6f76; }
+.coverage-grid article.cancelled > span { background: #c3a15a; }
+.coverage-grid strong, .coverage-grid small, .coverage-grid p { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coverage-grid strong { color: #242a44; font-size: 12px; }
+.coverage-grid small, .coverage-grid p { margin: 3px 0 0; color: #7b839e; font-size: 10px; }
+.passport-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
+.passport-strip > div { padding: 10px; border-radius: 10px; background: linear-gradient(135deg, #f5f2ff, #f4fbff); }
+.passport-strip b { display: block; color: #664bea; font-size: 20px; }
+.passport-strip span, .passport-strip small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.passport-strip span { color: #303650; font-size: 10px; font-weight: 700; }
+.passport-strip small { margin-top: 2px; color: #7c849e; font-size: 9px; }
+
 .summary-card {
   display: flex;
   align-items: center;

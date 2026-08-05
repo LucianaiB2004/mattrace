@@ -41,7 +41,7 @@ test("server-renders the MatTrace dashboard landmarks", async () => {
   assert.match(html, /开始真实分析/);
   assert.doesNotMatch(html, /保存当前项目/);
   assert.doesNotMatch(html, /恢复项目/);
-  assert.match(html, /项目与隐私/);
+  assert.doesNotMatch(html, /项目与隐私/);
   assert.match(html, /文档工作区/);
   assert.match(html, /分析结果与证据/);
   assert.match(html, /导出预览/);

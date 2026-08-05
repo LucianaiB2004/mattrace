@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { analyzeDocuments, requestGateway, testProvider } from "../app/services/ai-client.mjs";
+import { analyzeDocument, analyzeDocuments, requestGateway, testProvider } from "../app/services/ai-client.mjs";
 
 const config = {
   gateway: "https://ai.chipcloud.cc/",
@@ -102,4 +102,18 @@ test("analysis preserves AbortError so the UI can distinguish cancellation", asy
     () => analyzeDocuments(config, documents, async () => { throw aborted; }),
     (error) => error.name === "AbortError",
   );
+});
+
+test("single-document analysis supports an explicit no-evidence outcome", async () => {
+  const result = await analyzeDocument(config, documents[0], async () => response(200, {
+    choices: [{ message: { content: JSON.stringify({
+      status: "no_evidence",
+      checkedPages: [1],
+      reason: "全文未发现定量材料性能记录",
+      records: [],
+    }) } }],
+  }));
+  assert.equal(result.status, "no_evidence");
+  assert.deepEqual(result.checkedPages, [1]);
+  assert.equal(result.records.length, 0);
 });

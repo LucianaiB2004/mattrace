@@ -1,18 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildAnalysisMessages, selectEvidenceExcerpts } from "../app/domain/prompt.mjs";
+import { buildDocumentAnalysisMessages, selectEvidenceExcerpts } from "../app/domain/prompt.mjs";
 
-test("analysis prompt bounds large real-paper batches for browser gateways", () => {
-  const documents = Array.from({ length: 3 }, (_, index) => ({
-    name: `paper-${index + 1}.pdf`,
-    pages: [{ page: 1, text: "x".repeat(40_000) }],
-  }));
-  const messages = buildAnalysisMessages(documents);
+test("analysis prompt applies the Skill contract to one document", () => {
+  const messages = buildDocumentAnalysisMessages({
+    name: "paper.pdf",
+    pages: [{ page: 1, text: "LLZO conductivity is 1.2 mS/cm at 25°C." }],
+  });
   assert.equal(messages.length, 2);
-  assert.ok(messages[1].content.length < 1_500);
-  assert.match(messages[1].content, /paper-1\.pdf/);
-  assert.match(messages[1].content, /paper-3\.pdf/);
+  assert.match(messages[0].content, /材料组成/);
+  assert.match(messages[0].content, /缺失字段/);
+  assert.match(messages[0].content, /来源页码/);
+  assert.match(messages[0].content, /全部可追溯的定量性能记录/);
+  assert.doesNotMatch(messages[0].content, /最有代表性的 1 条/);
+  assert.match(messages[1].content, /paper\.pdf/);
 });
 
 test("evidence selection finds quantitative sentences beyond a paper cover page", () => {
@@ -23,4 +25,10 @@ test("evidence selection finds quantitative sentences beyond a paper cover page"
   assert.match(excerpt, /第 8 页/);
   assert.match(excerpt, /1\.4 W m-1 K-1/);
   assert.doesNotMatch(excerpt, /author list/);
+});
+
+test("evidence selection keeps quantitative content from punctuation-poor PDF pages", () => {
+  const excerpt = selectEvidenceExcerpts({ pages: [{ page: 2, text: `${"Methods text ".repeat(100)} thermal conductivity was 1.4 W m-1 K-1 at 300 K` }] });
+  assert.match(excerpt, /第 2 页/);
+  assert.match(excerpt, /thermal conductivity/);
 });

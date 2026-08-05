@@ -1,5 +1,5 @@
 import { extractJsonObject, normalizeAnalysisResult } from "../domain/analysis.mjs";
-import { buildAnalysisMessages } from "../domain/prompt.mjs";
+import { buildAnalysisMessages, buildDocumentAnalysisMessages } from "../domain/prompt.mjs";
 
 function baseV1(gateway) {
   const clean = String(gateway ?? "").trim().replace(/\/+$/, "");
@@ -111,6 +111,51 @@ export async function analyzeDocuments(
     onStage(4);
     onStage(5);
     return result;
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw safeError("模型返回格式无效", error?.message || "无法解析", config);
+  }
+}
+
+export async function analyzeDocument(config, document, fetchImpl = fetch, signal) {
+  if (!document) throw new Error("缺少待分析文档");
+  const root = baseV1(requestGateway(config.gateway));
+  let response;
+  try {
+    response = await fetchImpl(`${root}/chat/completions`, {
+      method: "POST",
+      headers: headers(config),
+      signal,
+      body: JSON.stringify({
+        model: String(config.model ?? "").trim(),
+        messages: buildDocumentAnalysisMessages(document),
+        temperature: 0.1,
+        max_tokens: 512,
+        response_format: { type: "json_object" },
+      }),
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw safeError("网络请求失败", error?.message || "无法连接模型服务", config);
+  }
+  if (!response.ok) throw safeError("分析请求失败", await errorMessage(response), config);
+  try {
+    const raw = extractJsonObject(contentFromCompletion(await response.json()));
+    const checkedPages = Array.isArray(raw.checkedPages)
+      ? raw.checkedPages
+      : (document.pages ?? []).map((page) => page.page);
+    if (raw.status === "no_evidence" || raw.records?.length === 0) {
+      return {
+        status: "no_evidence",
+        records: [],
+        missingConditions: [],
+        conflicts: [],
+        summary: String(raw.summary ?? ""),
+        checkedPages,
+        reason: String(raw.reason ?? "未发现可追溯的定量材料性能证据"),
+      };
+    }
+    return { status: "extracted", checkedPages, reason: "", ...normalizeAnalysisResult(raw) };
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     throw safeError("模型返回格式无效", error?.message || "无法解析", config);

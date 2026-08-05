@@ -83,31 +83,16 @@ test("local text analysis remembers the provider but keeps the key out of projec
     { name: "paper-c.md", mimeType: "text/markdown", buffer: Buffer.from("# Evidence\nImpedance spectroscopy was used.") },
   ]);
   await expect(page.getByRole("button", { name: /TXT paper-a/ })).toBeVisible();
-  await expect(page.getByText("已添加 3/10")).toBeVisible();
+  await expect(page.getByText(/已添加 3\/20 · 已选择 3 篇/)).toBeVisible();
 
   await page.getByRole("button", { name: "打开模型配置" }).click();
   const dialog = page.getByRole("dialog", { name: "模型配置" });
   await dialog.getByLabel("API Key").fill("runtime-test-key");
   await dialog.getByRole("button", { name: "应用配置" }).click();
   await page.getByRole("button", { name: "开始真实分析" }).click();
-  await expect(page.getByText("真实分析完成，共提取 1 条数据")).toBeVisible();
-  await expect(page.getByRole("cell", { name: "LLZO" })).toBeVisible();
+  await expect(page.getByText(/真实分析完成：3 篇均有状态，共提取 3 条数据/)).toBeVisible();
+  await expect(page.getByRole("cell", { name: "LLZO" }).first()).toBeVisible();
 
-  await page.locator(".session-card").getByRole("button", { name: "保存", exact: true }).click();
-  await expect(page.getByText("当前项目已安全保存，不包含 API Key")).toBeVisible();
-  const persisted = await page.evaluate(async () => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("mattrace-projects", 1);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    const request = database.transaction("workspace").objectStore("workspace").get("current");
-    return await new Promise((resolve, reject) => {
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  });
-  expect(JSON.stringify(persisted)).not.toContain("runtime-test-key");
   await page.reload();
   await waitForHydration(page);
   await page.getByRole("button", { name: "打开模型配置" }).click();
@@ -197,10 +182,10 @@ test("bundled literature exposes complete parsed pages beyond the cover", async 
 });
 
 test("bundled PDFs hydrate before entering a real AI request", async ({ page }) => {
-  let prompt = "";
+  const prompts: string[] = [];
   await page.route("**/v1/chat/completions", async (route) => {
     const payload = route.request().postDataJSON();
-    prompt = payload.messages.map((message: { content: string }) => message.content).join("\n");
+    prompts.push(payload.messages.map((message: { content: string }) => message.content).join("\n"));
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ summary: "公开论文真实分析完成", records: [{ material: "LLZTO", process: "TDTR", property: "热导率", value: 1.4, unit: "W m-1 K-1", conditions: { temperature: "室温" }, sourceDocument: "Solid Electrolytes 2021.pdf", page: 2, evidence: "thermal conductivities are 1.4 W m-1 K-1", confidence: "high" }], missingConditions: [], conflicts: [] }) } }] }) });
   });
   await page.goto("/");
@@ -210,11 +195,12 @@ test("bundled PDFs hydrate before entering a real AI request", async ({ page }) 
   await settings.getByLabel("API Key").fill("bundled-runtime-key");
   await settings.getByRole("button", { name: "应用配置" }).click();
   await page.getByRole("button", { name: "开始真实分析" }).click();
-  await expect(page.getByText("真实分析完成，共提取 1 条数据")).toBeVisible({ timeout: 20_000 });
-  expect(prompt).toContain("Solid Electrolytes 2021.pdf");
-  expect(prompt).toContain("Superionic Discovery 2022.pdf");
-  expect(prompt).toContain("Lattice Dynamics 2024.pdf");
-  expect(prompt).toContain("[第 28 页]");
+  await expect(page.getByText(/真实分析完成：3 篇均有状态，共提取 3 条数据/)).toBeVisible({ timeout: 20_000 });
+  expect(prompts).toHaveLength(3);
+  expect(prompts.join("\n")).toContain("Solid Electrolytes 2021.pdf");
+  expect(prompts.join("\n")).toContain("Superionic Discovery 2022.pdf");
+  expect(prompts.join("\n")).toContain("Lattice Dynamics 2024.pdf");
+  expect(prompts[0]).toContain("1.4 W m -1 K -1");
 });
 
 test("document selection is independent from preview and scopes real analysis", async ({ page }) => {
@@ -260,11 +246,6 @@ test("document title rename cascades through evidence, export, and project resto
   await page.getByRole("button", { name: "Markdown" }).click();
   await expect(page.getByRole("dialog", { name: "导出预览" })).toContainText("Battery Thermal Evidence.pdf");
   await page.keyboard.press("Escape");
-  await page.locator(".session-card").getByRole("button", { name: "保存", exact: true }).click();
-  await page.getByRole("button", { name: "清空" }).click();
-  await page.locator(".session-card").getByRole("button", { name: "恢复", exact: true }).click();
-  await expect(page.locator(".file-chip").first()).toContainText("Battery Thermal Evidence");
-
   await page.locator(".file-chip").first().click();
   const renamedDialog = page.getByRole("dialog", { name: "Battery Thermal Evidence.pdf" });
   await renamedDialog.getByRole("heading", { name: "Battery Thermal Evidence.pdf" }).dblclick();
@@ -300,7 +281,7 @@ test("drag and drop accepts text while invalid files show an actionable error", 
   await expect(page.getByRole("button", { name: /TXT dragged/ })).toBeVisible();
 });
 
-test("settings, issue drawers, all exports, and project lifecycle controls work", async ({ page, context }) => {
+test("settings, issue drawers, and all exports work without project lifecycle controls", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.route("**/v1/models", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"data":[{"id":"qwen3.8-max"}]}' }));
   await page.goto("/");
@@ -331,17 +312,7 @@ test("settings, issue drawers, all exports, and project lifecycle controls work"
     await page.keyboard.press("Escape");
   }
 
-  await page.locator(".session-card").getByRole("button", { name: "保存", exact: true }).click();
-  await expect(page.getByText("当前项目已安全保存，不包含 API Key")).toBeVisible();
-  await page.getByRole("button", { name: "清空" }).click();
-  await expect(page.getByText("已添加 0/10")).toBeVisible();
-  await page.locator(".session-card").getByRole("button", { name: "恢复", exact: true }).click();
-  await expect(page.getByText("项目已恢复，API Key 仍为空")).toBeVisible();
-  await expect(page.getByText("已添加 3/10")).toBeVisible();
-  await page.getByRole("button", { name: "删除存档" }).click();
-  await expect(page.getByText("已保存项目已删除")).toBeVisible();
-  await page.locator(".session-card").getByRole("button", { name: "恢复", exact: true }).click();
-  await expect(page.getByText("没有找到已保存的项目")).toBeVisible();
+  await expect(page.locator(".session-card")).toHaveCount(0);
 });
 
 test("real analysis can be cancelled and malformed model output remains recoverable", async ({ page }) => {
@@ -421,7 +392,6 @@ test("body typography is readable without breaking the mobile viewport", async (
   expect(await fontSize("tbody td")).toBeGreaterThanOrEqual(13);
   expect(await fontSize(".evidence-card blockquote")).toBeGreaterThanOrEqual(13);
   expect(await fontSize(".mode-banner p")).toBeGreaterThanOrEqual(11);
-  expect(await fontSize(".session-card p")).toBeGreaterThanOrEqual(11);
   expect(await fontSize(".file-chip i")).toBeGreaterThanOrEqual(11);
 
   await page.getByRole("button", { name: /^Skill 管理/ }).click();
