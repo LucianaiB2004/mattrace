@@ -56,7 +56,7 @@ test("example mode, evidence navigation, and exports work end to end", async ({ 
   await page.getByRole("button", { name: /下载 mattrace-report\.md/ }).click();
   expect((await downloadPromise).suggestedFilename()).toBe("mattrace-report.md");
   await page.getByRole("dialog", { name: "导出预览" }).getByRole("button", { name: "关闭详情" }).click();
-  await page.screenshot({ path: "docs/mattrace-complete-preview.png", fullPage: true });
+  await page.screenshot({ path: "test-results/mattrace-complete-preview.png", fullPage: true });
   expect(errors).toEqual([]);
 });
 
