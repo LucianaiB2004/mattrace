@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { buildUpstreamHeaders, responseHeaders } from "./proxy-transport.mjs";
+import { buildUpstreamHeaders, hasCompletedSse, responseHeaders } from "./proxy-transport.mjs";
 
 const upstream = "https://ai.chipcloud.cc";
 const port = Number(process.argv[2] || 8788);
@@ -18,16 +18,24 @@ function corsHeaders(origin) {
 
 function requestUpstream(url, options, body) {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const upstreamRequest = httpsRequest(url, options, (upstreamResponse) => {
       const chunks = [];
-      upstreamResponse.on("data", (chunk) => chunks.push(chunk));
-      upstreamResponse.on("end", () => resolve({
-        status: upstreamResponse.statusCode || 502,
-        headers: upstreamResponse.headers,
-        body: Buffer.concat(chunks),
-      }));
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve({ status: upstreamResponse.statusCode || 502, headers: upstreamResponse.headers, body: Buffer.concat(chunks) });
+      };
+      upstreamResponse.on("data", (chunk) => {
+        chunks.push(chunk);
+        if (String(upstreamResponse.headers["content-type"] ?? "").includes("text/event-stream") && hasCompletedSse(Buffer.concat(chunks))) {
+          finish();
+          upstreamResponse.destroy();
+        }
+      });
+      upstreamResponse.on("end", finish);
     });
-    upstreamRequest.on("error", reject);
+    upstreamRequest.on("error", (error) => { if (!settled) reject(error); });
     upstreamRequest.setTimeout(120_000, () => upstreamRequest.destroy(new Error("Upstream timeout")));
     if (body.length) upstreamRequest.write(body);
     upstreamRequest.end();
@@ -51,9 +59,10 @@ createServer(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const requestBody = chunks.length ? Buffer.concat(chunks) : Buffer.alloc(0);
+    const streaming = requestBody.includes(Buffer.from('"stream":true'));
     const upstreamResponse = await requestUpstream(`${upstream}${request.url}`, {
       method: request.method,
-      headers: buildUpstreamHeaders(request.headers, requestBody.length),
+      headers: buildUpstreamHeaders(request.headers, requestBody.length, streaming),
     }, requestBody);
     const headers = responseHeaders(upstreamResponse.headers);
     response.writeHead(upstreamResponse.status, { ...headers, ...cors });

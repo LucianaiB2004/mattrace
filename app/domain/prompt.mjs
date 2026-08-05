@@ -18,7 +18,9 @@ export function selectEvidenceExcerpts(document, limit = 900) {
         const start = Math.max(0, evidenceAt - 250);
         const excerpt = `[第 ${page.page} 页] ${compact.slice(start, start + 500)}`;
         const score = (/(?:S\s*\/\s*cm|mS|MPa|GPa|mAh|W\s*m|%)/i.test(compact) ? 5 : 0)
-          + (/(?:conductiv|capacity|strength|modulus|density)/i.test(compact) ? 2 : 0);
+          + (/(?:conductiv|capacity|strength|modulus|density)/i.test(compact) ? 2 : 0)
+          + (/(?:table|chemical formula|composition)/i.test(compact) ? 4 : 0)
+          + Math.min(compact.match(/\d+(?:\.\d+)?/g)?.length ?? 0, 5);
         candidates.push({ excerpt, score });
       }
     }

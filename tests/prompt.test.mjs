@@ -32,3 +32,12 @@ test("evidence selection keeps quantitative content from punctuation-poor PDF pa
   assert.match(excerpt, /第 2 页/);
   assert.match(excerpt, /thermal conductivity/);
 });
+
+test("evidence selection prioritizes a later numeric materials table over introduction prose", () => {
+  const excerpt = selectEvidenceExcerpts({ pages: [
+    { page: 2, text: Array.from({ length: 5 }, (_, index) => `Criterion ${index + 1}: ionic conductivity above 10-4 S/cm is desirable.`).join(" ") },
+    { page: 21, text: "Table 1 Chemical formula Ionic conductivity (S/cm) at RT Cs2LiNd(BO3)2 0.000503 LiAlSiO4 0.000464 NaLiB4O7 0.000416" },
+  ] }, 400);
+  assert.match(excerpt, /第 21 页/);
+  assert.match(excerpt, /Cs2LiNd/);
+});

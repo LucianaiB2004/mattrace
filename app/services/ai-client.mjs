@@ -45,6 +45,27 @@ function contentFromCompletion(payload) {
   return content;
 }
 
+async function contentFromResponse(response) {
+  if (response.headers?.get?.("content-type")?.includes("text/event-stream")) {
+    const chunks = [];
+    for (const line of (await response.text()).split(/\r?\n/)) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const event = JSON.parse(data);
+        const content = event?.choices?.[0]?.delta?.content ?? event?.choices?.[0]?.message?.content;
+        if (typeof content === "string") chunks.push(content);
+      } catch {
+        throw new Error("模型流式响应包含无效事件");
+      }
+    }
+    if (!chunks.length) throw new Error("模型流式响应缺少内容");
+    return chunks.join("");
+  }
+  return contentFromCompletion(await response.json());
+}
+
 export async function testProvider(config, fetchImpl = fetch, signal) {
   const root = baseV1(requestGateway(config.gateway));
   const requestHeaders = headers(config);
@@ -130,7 +151,9 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
         model: String(config.model ?? "").trim(),
         messages: buildDocumentAnalysisMessages(document),
         temperature: 0.1,
-        max_tokens: 512,
+        max_tokens: 4096,
+        stream: true,
+        enable_thinking: false,
         response_format: { type: "json_object" },
       }),
     });
@@ -140,7 +163,7 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
   }
   if (!response.ok) throw safeError("分析请求失败", await errorMessage(response), config);
   try {
-    const raw = extractJsonObject(contentFromCompletion(await response.json()));
+    const raw = extractJsonObject(await contentFromResponse(response));
     const checkedPages = Array.isArray(raw.checkedPages)
       ? raw.checkedPages
       : (document.pages ?? []).map((page) => page.page);

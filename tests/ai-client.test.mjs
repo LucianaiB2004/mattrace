@@ -117,3 +117,22 @@ test("single-document analysis supports an explicit no-evidence outcome", async 
   assert.deepEqual(result.checkedPages, [1]);
   assert.equal(result.records.length, 0);
 });
+
+test("single-document analysis merges an OpenAI-compatible SSE response", async () => {
+  let requestBody;
+  const json = JSON.stringify({ status: "extracted", checkedPages: [1], records: [{ material: "LLZO", process: "固相烧结", property: "离子电导率", value: 1.2, unit: "mS/cm", conditions: { temperature: "25°C" }, sourceDocument: "paper.txt", page: 1, evidence: "LLZO conductivity is 1.2 mS/cm at 25°C.", confidence: "high" }] });
+  const midpoint = Math.floor(json.length / 2);
+  const result = await analyzeDocument(config, documents[0], async (_url, init) => {
+    requestBody = JSON.parse(init.body);
+    return new Response([
+      `data: ${JSON.stringify({ choices: [{ delta: { content: json.slice(0, midpoint) } }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { content: json.slice(midpoint) } }] })}\n\n`,
+      "data: [DONE]\n\n",
+    ].join(""), { status: 200, headers: { "content-type": "text/event-stream" } });
+  });
+  assert.equal(requestBody.stream, true);
+  assert.equal(requestBody.enable_thinking, false);
+  assert.equal(requestBody.max_tokens, 4096);
+  assert.equal(result.status, "extracted");
+  assert.equal(result.records[0].material, "LLZO");
+});
