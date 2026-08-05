@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import JSZip from "jszip";
 
 function monitorRuntimeErrors(page: Page) {
   const errors: string[] = [];
@@ -12,6 +14,22 @@ async function waitForHydration(page: Page) {
     const element = document.querySelector(".drop-zone");
     return !!element && Object.keys(element).some((key) => key.startsWith("__reactProps"));
   });
+}
+
+async function pdfFixture() {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const page = pdf.addPage([500, 700]);
+  page.drawText("LLZO ionic conductivity: 1.2 mS/cm at 25 C.", { x: 40, y: 640, size: 14, font });
+  return Buffer.from(await pdf.save());
+}
+
+async function docxFixture() {
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file("_rels/.rels", '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file("word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>MXene capacity is 312 mAh/g at 1 A/g.</w:t></w:r></w:p></w:body></w:document>');
+  return Buffer.from(await zip.generateAsync({ type: "uint8array" }));
 }
 
 test("example mode, evidence navigation, and exports work end to end", async ({ page }) => {
@@ -104,4 +122,77 @@ test("mobile layout stays within the viewport and keyboard Escape closes dialogs
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: "docs/mattrace-mobile-preview.png", fullPage: true });
+});
+
+test("PDF and DOCX parsers expose extracted text in document previews", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.locator('input[type="file"]').setInputFiles([
+    { name: "conductivity.pdf", mimeType: "application/pdf", buffer: await pdfFixture() },
+    { name: "capacity.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: await docxFixture() },
+  ]);
+  const pdfButton = page.getByRole("button", { name: /PDF conductivity/ });
+  const docxButton = page.getByRole("button", { name: /DOCX capacity/ });
+  await expect(pdfButton).toBeVisible({ timeout: 15_000 });
+  await expect(docxButton).toBeVisible({ timeout: 15_000 });
+  await pdfButton.click();
+  await expect(page.getByRole("dialog", { name: "conductivity.pdf" })).toContainText("LLZO ionic conductivity");
+  await page.getByRole("dialog", { name: "conductivity.pdf" }).getByRole("button", { name: "关闭详情" }).click();
+  await docxButton.click();
+  await expect(page.getByRole("dialog", { name: "capacity.docx" })).toContainText("MXene capacity is 312 mAh/g");
+});
+
+test("drag and drop accepts text while invalid files show an actionable error", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.locator('input[type="file"]').setInputFiles({ name: "image.png", mimeType: "image/png", buffer: Buffer.from("not an image") });
+  await expect(page.getByText("image.png：不支持 .png 文件")).toBeVisible();
+  await page.locator(".drop-zone").evaluate((element) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["Dragged LLZO evidence"], "dragged.txt", { type: "text/plain" }));
+    element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  });
+  await expect(page.getByRole("button", { name: /TXT dragged/ })).toBeVisible();
+});
+
+test("settings, issue drawers, all exports, and project lifecycle controls work", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.route("**/v1/models", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"data":[{"id":"qwen3.8-max"}]}' }));
+  await page.goto("/");
+  await waitForHydration(page);
+
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  const settings = page.getByRole("dialog", { name: "模型配置" });
+  await settings.getByLabel("API Key").fill("connection-only-key");
+  await settings.getByRole("button", { name: "测试连接" }).click();
+  await expect(page.getByText("模型服务连接成功，Key 未被保存")).toBeVisible();
+  await settings.getByRole("button", { name: "清除 Key" }).click();
+  await settings.getByRole("button", { name: "关闭模型配置" }).click();
+
+  await page.getByRole("button", { name: /缺失条件提醒/ }).click();
+  await expect(page.getByRole("dialog", { name: "缺失条件" })).toContainText("样品相对密度未说明");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /冲突检测提醒/ }).click();
+  await expect(page.getByRole("dialog", { name: "冲突检测" })).toContainText("差异 42%");
+  await page.keyboard.press("Escape");
+
+  for (const name of ["JSON", "CSV", "Markdown"]) {
+    await page.getByRole("button", { name: new RegExp(`${name}$`) }).first().click();
+    await expect(page.getByRole("dialog", { name: "导出预览" })).toBeVisible();
+    await page.getByRole("button", { name: "复制内容" }).click();
+    await expect(page.getByText("报告内容已复制").last()).toBeVisible();
+    await page.keyboard.press("Escape");
+  }
+
+  await page.getByRole("button", { name: "保存当前项目" }).click();
+  await expect(page.getByText("当前项目已安全保存，不包含 API Key")).toBeVisible();
+  await page.getByRole("button", { name: "清空" }).click();
+  await expect(page.getByText("已添加 0/10")).toBeVisible();
+  await page.getByRole("button", { name: "恢复项目" }).click();
+  await expect(page.getByText("项目已恢复，API Key 仍为空")).toBeVisible();
+  await expect(page.getByText("已添加 3/10")).toBeVisible();
+  await page.getByRole("button", { name: "删除存档" }).click();
+  await expect(page.getByText("已保存项目已删除")).toBeVisible();
+  await page.getByRole("button", { name: "恢复项目" }).click();
+  await expect(page.getByText("没有找到已保存的项目")).toBeVisible();
 });

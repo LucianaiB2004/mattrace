@@ -1,43 +1,94 @@
 # MatTrace
 
-MatTrace 是一个面向材料科研的文献数据提取与核验 Agent。用户上传论文、专利或实验文档后，Agent 会演示文献解析、结构化提取、单位规范化、条件核验、冲突检测和报告生成的完整流程，并保留可回溯的证据来源。
+MatTrace 是一个面向材料科研的文献数据提取与核验 Agent。它把论文、专利或实验文档转换成带原文证据、页码定位、测试条件和可信度的结构化数据，并自动提醒条件缺失和跨文献数值冲突。
 
-## 当前原型
+![MatTrace 完整工作台](docs/mattrace-complete-preview.png)
 
-- 材料文献上传与 Demo 工作流
-- 证据链预览、缺失条件提醒与跨文献冲突提示
-- JSON、CSV、Markdown 三种导出格式
-- 可配置 OpenAI-compatible API 网关、模型和用户自己的 API Key
-- 内置 `material-evidence-extractor` Skill 规范
+## 已实现功能
 
-API Key 只保存在当前页面内存中，不写入仓库、浏览器存储或服务端日志。
+- 浏览器本地解析 PDF、DOCX、TXT、Markdown
+- 文件选择与拖拽上传、格式/大小/重复/数量校验、预览、移除和清空
+- 无需 API Key 的完整示例运行
+- 通过 OpenAI-compatible `chat/completions` 接口执行真实分析
+- 默认网关 `https://ai.chipcloud.cc`，默认模型 `qwen3.8-max`
+- 六阶段 Agent 进度、取消、错误提示与保留文档重试
+- 单位规范化、缺失条件关联和差异超过 30% 的冲突检测
+- 数据表、证据原文、来源文档和页码联动查看
+- JSON、带 UTF-8 BOM 的 CSV、完整 Markdown 报告预览/复制/下载
+- IndexedDB 项目保存、恢复和删除
+- 响应式桌面/移动界面与键盘 Escape 关闭
+- 可独立使用的 `material-evidence-extractor` Skill
+- GitHub Pages 静态导出和自动部署工作流
+
+## 隐私模型
+
+API Key 只保存在当前 React 页面内存中，刷新即清除。它不会写入：
+
+- Git 仓库或构建产物
+- localStorage、sessionStorage 或 IndexedDB
+- URL、日志、导出报告或项目快照
+
+原始文件在浏览器本地解析。只有点击“开始真实分析”后，文档名、页码和解析后的文本才会发送到用户配置的 API 网关。保存项目是显式操作，保存内容不包含 API Key。
+
+## 支持的文档
+
+| 类型 | 解析方式 | 当前限制 |
+| --- | --- | --- |
+| PDF | PDF.js 逐页提取文本 | 扫描件不含文本层时会提示失败，暂不包含 OCR |
+| DOCX | Mammoth 提取正文 | 不保留复杂排版 |
+| TXT | 浏览器 UTF-8 解码 | 空文件会被拒绝 |
+| Markdown | 浏览器 UTF-8 解码 | 作为纯文本证据发送 |
+
+真实批次要求 3–10 篇，每个文件不超过 50 MB。
 
 ## 本地运行
 
-要求 Node.js 22.13 或更高版本。
+要求 Node.js `>=22.13.0`。
 
 ```bash
 npm install
 npm run dev
 ```
 
-打开 `http://localhost:3000`。
+打开 `http://localhost:3000`。无需 Key 可直接点击“使用示例运行”；真实分析需在“模型配置”中临时输入自己的 Key。
 
-## 验证
+## 构建与验证
 
 ```bash
 npm test
+npm run lint
+npm run test:e2e
+npm run test:e2e:static
 ```
 
-该命令会先执行生产构建，再运行核心逻辑、页面结构和 Skill 结构测试。
+- `npm test`：生产构建以及领域、API、解析、导出、存储和 SSR 测试
+- `npm run test:e2e`：开发服务完整浏览器交互验收
+- `npm run test:e2e:static`：生成静态 HTML，并在纯静态服务器上重新执行完整浏览器验收
 
-## 主要目录
+单独生成 GitHub Pages 产物：
 
-- `app/`：页面、交互与演示数据
-- `skills/material-evidence-extractor/`：材料证据提取 Skill
-- `tests/`：自动化验收测试
-- `docs/superpowers/`：产品设计与实现计划
+```bash
+npm run build:static
+```
 
-## 安全说明
+输出目录为 `dist/client/`，其中包含 `index.html` 和 `.nojekyll`。
 
-请勿把真实 API Key 提交到 Git。首次演示时在“模型配置”弹窗中临时输入；页面刷新后会自动清除。
+## GitHub Pages 发布
+
+仓库包含 `.github/workflows/pages.yml`。推送到 `main` 后，在 GitHub 仓库的 **Settings → Pages → Build and deployment** 中选择 **GitHub Actions**，工作流会构建并发布 `dist/client/`。
+
+静态资源使用相对路径，因此同时兼容用户主页和 `/repository-name/` 项目子路径。API 网关仍需允许浏览器跨域请求；当前默认网关的预检响应已验证允许浏览器 POST 与 Authorization 请求头。
+
+## 目录
+
+- `app/domain/`：分析结果、冲突、导出、工作流和安全快照
+- `app/services/`：文档解析、AI API 和 IndexedDB
+- `app/components/`：设置、详情抽屉和通知组件
+- `skills/material-evidence-extractor/`：比赛 Skill 与输出协议
+- `scripts/static-export.mjs`：GitHub Pages 静态导出
+- `tests/`：单元、集成、SSR 和浏览器测试
+- `docs/superpowers/`：设计规格与实施计划
+
+## 安全提醒
+
+不要把真实 API Key 提交到 Git。若 Key 曾出现在聊天、截图或公开日志中，应立即在服务提供方撤销并重新生成。

@@ -40,6 +40,6 @@ yarn-error.log*
 /work/
 /.browser-test/
 /.logs/
-/public/mattrace-mascot-key.png
+/.artifacts/
 /test-results/
 /playwright-report/
