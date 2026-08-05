@@ -45,5 +45,6 @@ export async function parseDocument(file, onProgress = () => {}) {
     text,
     pages,
     status: "ready",
+    previewUrl: type === "pdf" ? URL.createObjectURL(file) : undefined,
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import DetailsDrawer from "./components/DetailsDrawer";
 import SettingsDialog from "./components/SettingsDialog";
 import SkillManager from "./components/SkillManager";
@@ -20,7 +20,7 @@ import "./MatTraceDashboard.css";
 type ParsedDocument = {
   id: string; name: string; type: string; size: number; pageCount: number;
   text: string; pages: Array<{ page: number; text: string }>;
-  status: string; example?: boolean;
+  status: string; example?: boolean; previewUrl?: string;
 };
 type RecordRow = {
   id: string; material: string; process: string; property: string; value: number;
@@ -73,11 +73,17 @@ export default function MatTraceDashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [documentPreview, setDocumentPreview] = useState<ParsedDocument | null>(null);
+  const [documentPreviewMode, setDocumentPreviewMode] = useState<"pdf" | "text">("pdf");
   const [exportFormat, setExportFormat] = useState<"json" | "csv" | "markdown">("markdown");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const previewUrlsRef = useRef(new Set<string>());
+
+  useEffect(() => () => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
   const records = report?.records ?? [];
   const activeRecord = records.find((item) => item.id === selectedRecordId) ?? records[0] ?? null;
@@ -112,7 +118,9 @@ export default function MatTraceDashboard() {
     const parsed: ParsedDocument[] = [];
     for (const file of validation.accepted) {
       try {
-        parsed.push(await parseDocument(file));
+        const document = await parseDocument(file) as ParsedDocument;
+        if (document.previewUrl?.startsWith("blob:")) previewUrlsRef.current.add(document.previewUrl);
+        parsed.push(document);
         notify(`${file.name} 解析完成`, "success");
       } catch (error) {
         notify(error instanceof Error ? error.message : `${file.name} 解析失败`, "error");
@@ -139,6 +147,11 @@ export default function MatTraceDashboard() {
   }
 
   function removeDocument(id: string) {
+    const removed = documents.find((item) => item.id === id);
+    if (removed?.previewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(removed.previewUrl);
+      previewUrlsRef.current.delete(removed.previewUrl);
+    }
     const next = documents.filter((item) => item.id !== id);
     setDocuments(next);
     if (!next.some((item) => item.example)) { setReport(null); setSelectedRecordId(""); }
@@ -158,7 +171,7 @@ export default function MatTraceDashboard() {
     setReport(next);
     setSelectedRecordId(next.records[0].id);
     setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_SUCCEEDED", reportId: "example-report" }));
-    notify("示例分析完成，所有结果均标记为示例数据", "success");
+    notify("公开论文分析完成，可逐条核对 PDF 与证据", "success");
   }
 
   async function runRealAnalysis() {
@@ -250,19 +263,19 @@ export default function MatTraceDashboard() {
 
         <div className="content-grid"><section className="main-column">
           <article className="card upload-card" id="documents" aria-labelledby="upload-title">
-            <div className="section-heading"><div><h2 id="upload-title">文档工作区 <span>（3–10 篇）</span></h2><p>PDF、DOCX、TXT、Markdown 均在浏览器本地解析</p></div><div className="run-actions"><button className="secondary-run" type="button" disabled={isBusy} onClick={runExample}>使用示例运行</button>{workflow.phase === "analyzing" ? <button className="run-button danger" type="button" onClick={cancelAnalysis}>取消分析</button> : <button className="run-button" type="button" disabled={isBusy} onClick={runRealAnalysis}>开始真实分析</button>}</div></div>
-            <div className="mode-banner"><span className={workflow.mode === "real" ? "real" : "example"}>{workflow.mode === "real" ? "真实分析" : "示例数据"}</span><p>{workflow.phase === "error" ? workflow.error : workflow.phase === "cancelled" ? "分析已取消，可调整后重试" : report?.summary ?? "文档已就绪，等待开始分析"}</p><button type="button" onClick={() => setDrawer("privacy")}>隐私与数据流</button></div>
+            <div className="section-heading"><div><h2 id="upload-title">文档工作区 <span>（3–10 篇）</span></h2><p>PDF、DOCX、TXT、Markdown 均在浏览器本地解析</p></div><div className="run-actions"><button className="secondary-run" type="button" disabled={isBusy} onClick={runExample}>载入公开论文</button>{workflow.phase === "analyzing" ? <button className="run-button danger" type="button" onClick={cancelAnalysis}>取消分析</button> : <button className="run-button" type="button" disabled={isBusy} onClick={runRealAnalysis}>开始真实分析</button>}</div></div>
+            <div className="mode-banner"><span className={workflow.mode === "real" ? "real" : "example"}>{workflow.mode === "real" ? "真实分析" : "公开论文"}</span><p>{workflow.phase === "error" ? workflow.error : workflow.phase === "cancelled" ? "分析已取消，可调整后重试" : report?.summary ?? "文档已就绪，等待开始分析"}</p><button type="button" onClick={() => setDrawer("privacy")}>隐私与数据流</button></div>
             <div className="upload-layout"><button className={`drop-zone ${isDragging ? "dragging" : ""}`} type="button" onClick={() => fileInputRef.current?.click()} onDragEnter={() => setIsDragging(true)} onDragLeave={() => setIsDragging(false)} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}><span className="upload-art" aria-hidden="true">⇧</span><strong>拖拽文件到这里，或点击上传</strong><small>支持 PDF、DOCX、TXT、MD（≤ 50MB）</small></button><input ref={fileInputRef} className="sr-only" type="file" multiple accept=".pdf,.docx,.txt,.md" onChange={handleFiles} />
-              <div className="file-tray"><div className="tray-heading"><p>已添加 {documents.length}/10</p><button type="button" onClick={() => { setDocuments([]); setReport(null); setSelectedRecordId(""); notify("工作区已清空", "success"); }}>清空</button></div><div className="file-list">{documents.slice(0, 5).map((file) => <button className="file-chip" key={file.id} title={`${file.name} · ${bytes(file.size)}`} type="button" onClick={() => setDocumentPreview(file)}><span className={`file-type ${file.type}`}>{file.type.toUpperCase()}</span><small>{file.name.replace(/\.[^.]+$/, "")}</small><i>{file.example ? "示例" : `${file.pageCount}页`}</i></button>)}{documents.length < 10 && <button className="add-file" type="button" onClick={() => fileInputRef.current?.click()} aria-label="添加更多文献">+</button>}</div></div>
+              <div className="file-tray"><div className="tray-heading"><p>已添加 {documents.length}/10</p><button type="button" onClick={() => { documents.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); }); previewUrlsRef.current.clear(); setDocuments([]); setReport(null); setSelectedRecordId(""); notify("工作区已清空", "success"); }}>清空</button></div><div className="file-list">{documents.slice(0, 5).map((file) => <button className="file-chip" key={file.id} title={`${file.name} · ${bytes(file.size)}`} type="button" onClick={() => { setDocumentPreview(file); setDocumentPreviewMode(file.type === "pdf" ? "pdf" : "text"); }}><span className={`file-type ${file.type}`}>{file.type.toUpperCase()}</span><small>{file.name.replace(/\.[^.]+$/, "")}</small><i>{file.pageCount}页</i></button>)}{documents.length < 10 && <button className="add-file" type="button" onClick={() => fileInputRef.current?.click()} aria-label="添加更多文献">+</button>}</div></div>
             </div>
           </article>
 
           <article className="card progress-card" aria-labelledby="progress-title"><div className="section-heading compact"><div><h2 id="progress-title">Agent 工作进度</h2><p>每一步都有显式状态，失败后可保留文档重试</p></div><span className={`phase-pill ${workflow.phase}`}>{workflow.phase === "analyzing" ? `${workflow.activeStage + 1}/6 进行中` : workflow.phase === "success" ? "6/6 已完成" : workflow.phase === "parsing" ? "解析中" : workflow.phase === "error" ? "需要处理" : "等待运行"}</span></div><div className="stage-track">{stageLabels.map((label, index) => { const status = workflow.phase === "success" || (workflow.phase === "analyzing" && index < workflow.activeStage) ? "complete" : workflow.phase === "analyzing" && index === workflow.activeStage ? "active" : "pending"; return <div className={`stage ${status}`} key={label}><div className="stage-top"><span className="stage-icon">{stageIcons[index]}</span>{index < 5 && <i />}</div><strong>{label}</strong><small>{status === "complete" ? "已完成" : status === "active" ? "进行中…" : "等待中"}</small></div>; })}</div></article>
 
           <article className="card data-card" id="results" aria-labelledby="overview-title"><div className="section-heading compact"><div><h2 id="overview-title">分析结果与证据</h2><p>点击数据行可查看原文、页码和来源文档</p></div><button className="text-button" type="button" onClick={() => setDrawer("records")}>查看全部数据 →</button></div><div className="summary-grid">{summaryCards.map((item) => <button className={`summary-card ${item.tone}`} key={item.label} type="button" onClick={() => setDrawer(item.drawer)}><span><small>{item.label}</small><strong>{item.value}</strong></span><b aria-hidden="true">{item.icon}</b></button>)}</div>
-            <div className="table-wrap"><table><thead><tr><th>材料体系</th><th>制备工艺</th><th>性能指标</th><th>数值（单位）</th><th>测试条件</th><th>来源</th><th>可信度</th></tr></thead><tbody>{records.length ? records.slice(0, 5).map((record) => <tr className={selectedRecordId === record.id ? "selected" : ""} key={record.id} onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { setSelectedRecordId(record.id); setDrawer("evidence"); } }}><td>{record.material}</td><td>{record.process}</td><td>{record.property}</td><td>{record.value} {record.unit}</td><td>{record.conditionText}</td><td>{record.sourceDocument} · P.{record.page}</td><td><span className={`confidence ${record.confidence}`}>{record.confidence === "high" ? "高" : record.confidence === "medium" ? "中" : "低"}</span></td></tr>) : <tr><td colSpan={7} className="empty-cell">暂无结果，请使用示例运行或完成真实分析</td></tr>}</tbody></table></div>
+            <div className="table-wrap"><table><thead><tr><th>材料体系</th><th>制备工艺</th><th>性能指标</th><th>数值（单位）</th><th>测试条件</th><th>来源</th><th>可信度</th></tr></thead><tbody>{records.length ? records.slice(0, 5).map((record) => <tr className={selectedRecordId === record.id ? "selected" : ""} key={record.id} onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { setSelectedRecordId(record.id); setDrawer("evidence"); } }}><td>{record.material}</td><td>{record.process}</td><td>{record.property}</td><td>{record.value} {record.unit}</td><td>{record.conditionText}</td><td>{record.sourceDocument} · P.{record.page}</td><td><span className={`confidence ${record.confidence}`}>{record.confidence === "high" ? "高" : record.confidence === "medium" ? "中" : "低"}</span></td></tr>) : <tr><td colSpan={7} className="empty-cell">暂无结果，请载入公开论文或完成真实分析</td></tr>}</tbody></table></div>
           </article>
-          <footer className="workspace-footer"><span>♢ {workflow.mode === "real" ? "真实分析模式" : "示例演示模式"}</span><i /><span>由 material-evidence-extractor Skill 驱动</span></footer>
+          <footer className="workspace-footer"><span>♢ {workflow.mode === "real" ? "真实分析模式" : "公开论文模式"}</span><i /><span>由 material-evidence-extractor Skill 驱动</span></footer>
         </section>
 
         <aside className="insight-column" aria-label="证据与风险摘要">
@@ -279,8 +292,8 @@ export default function MatTraceDashboard() {
 
       <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined}>
         {!documentPreview && drawer === "skill" && <SkillManager onNotify={notify} />}
-        {documentPreview && <><div className="document-text-preview">{documentPreview.pages.map((page) => <section key={page.page}><strong>第 {page.page} 页</strong><p>{page.text || "本页没有可提取文本"}</p></section>)}</div><button className="drawer-danger" type="button" onClick={() => { removeDocument(documentPreview.id); setDocumentPreview(null); }}>移除此文档</button></>}
-        {!documentPreview && drawer === "documents" && <div className="drawer-list">{documents.map((doc) => <article key={doc.id}><span className={`file-type ${doc.type}`}>{doc.type.toUpperCase()}</span><div><strong>{doc.name}</strong><p>{bytes(doc.size)} · {doc.pageCount} 页 · {doc.example ? "示例文档" : "本地已解析"}</p></div><button type="button" onClick={() => setDocumentPreview(doc)}>预览</button><button type="button" onClick={() => removeDocument(doc.id)}>移除</button></article>)}</div>}
+        {documentPreview && <><div className="document-view-tabs">{documentPreview.type === "pdf" && <button className={documentPreviewMode === "pdf" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("pdf")}>PDF 原文</button>}<button className={documentPreviewMode === "text" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("text")}>解析文本</button></div>{documentPreview.type === "pdf" && documentPreviewMode === "pdf" ? (documentPreview.previewUrl ? <iframe className="pdf-frame" src={documentPreview.previewUrl} title={`${documentPreview.name} PDF 预览`} /> : <div className="drawer-empty">当前项目未保留此 PDF 原文件，请重新上传后预览</div>) : <div className="document-text-preview">{documentPreview.pages.map((page) => <section key={page.page}><strong>第 {page.page} 页</strong><p>{page.text || "本页没有可提取文本"}</p></section>)}</div>}<button className="drawer-danger" type="button" onClick={() => { removeDocument(documentPreview.id); setDocumentPreview(null); }}>移除此文档</button></>}
+        {!documentPreview && drawer === "documents" && <div className="drawer-list">{documents.map((doc) => <article key={doc.id}><span className={`file-type ${doc.type}`}>{doc.type.toUpperCase()}</span><div><strong>{doc.name}</strong><p>{bytes(doc.size)} · {doc.pageCount} 页 · {doc.example ? "公开 PDF" : "本地已解析"}</p></div><button type="button" onClick={() => { setDocumentPreview(doc); setDocumentPreviewMode(doc.type === "pdf" ? "pdf" : "text"); }}>预览</button><button type="button" onClick={() => removeDocument(doc.id)}>移除</button></article>)}</div>}
         {!documentPreview && drawer === "records" && <div className="record-grid">{records.map((record) => <button key={record.id} type="button" onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }}><span>{record.material}</span><strong>{record.value} {record.unit}</strong><small>{record.property} · {record.sourceDocument}</small></button>)}</div>}
         {!documentPreview && drawer === "evidence" && (activeRecord ? <div className="evidence-detail"><div className="evidence-meta"><span>{activeRecord.material}</span><span>{activeRecord.property}</span><span>{activeRecord.value} {activeRecord.unit}</span><span>{activeRecord.confidence}</span></div><blockquote>{activeRecord.evidence}</blockquote><p><strong>来源：</strong>{activeRecord.sourceDocument} · 第 {activeRecord.page} 页</p><p><strong>制备：</strong>{activeRecord.process}</p><p><strong>条件：</strong>{activeRecord.conditionText}</p><div className="drawer-tabs">{records.map((record) => <button className={record.id === selectedRecordId ? "active" : ""} key={record.id} type="button" onClick={() => setSelectedRecordId(record.id)}>{record.id}</button>)}</div></div> : <div className="drawer-empty">暂无证据</div>)}
         {!documentPreview && drawer === "missing" && <div className="issue-list">{report?.missingConditions.length ? report.missingConditions.map((item) => <article key={item.id}><b>!</b><div><strong>{item.message}</strong><p>关联记录：{item.recordId}</p></div><button type="button" onClick={() => { setSelectedRecordId(item.recordId ?? ""); setDrawer("evidence"); }}>查看证据</button></article>) : <div className="drawer-empty">没有发现缺失条件</div>}</div>}

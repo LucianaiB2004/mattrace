@@ -32,14 +32,14 @@ async function docxFixture() {
   return Buffer.from(await zip.generateAsync({ type: "uint8array" }));
 }
 
-test("example mode, evidence navigation, and exports work end to end", async ({ page }) => {
+test("bundled literature mode, evidence navigation, and exports work end to end", async ({ page }) => {
   const errors = monitorRuntimeErrors(page);
   await page.goto("/");
   await waitForHydration(page);
   await expect(page.getByRole("heading", { name: "文档工作区" })).toBeVisible();
-  await page.getByRole("button", { name: "使用示例运行" }).click();
+  await page.getByRole("button", { name: "载入公开论文" }).click();
   await expect(page.getByText("6/6 已完成")).toBeVisible();
-  await expect(page.getByText(/示例分析完成/)).toBeVisible();
+  await expect(page.getByText(/公开论文分析完成/)).toBeVisible();
 
   await page.getByRole("button", { name: /文献管理/ }).click();
   await expect(page.getByRole("dialog", { name: "文档管理" })).toBeVisible();
@@ -130,7 +130,7 @@ test("mobile layout stays within the viewport and keyboard Escape closes dialogs
   await page.screenshot({ path: "test-results/mattrace-mobile-preview.png", fullPage: true });
 });
 
-test("PDF and DOCX parsers expose extracted text in document previews", async ({ page }) => {
+test("PDF opens a real document view while DOCX exposes extracted text", async ({ page }) => {
   await page.goto("/");
   await waitForHydration(page);
   await page.locator('input[type="file"]').setInputFiles([
@@ -142,12 +142,26 @@ test("PDF and DOCX parsers expose extracted text in document previews", async ({
   await expect(pdfButton).toBeVisible({ timeout: 15_000 });
   await expect(docxButton).toBeVisible({ timeout: 15_000 });
   await pdfButton.click();
-  await expect(page.getByRole("dialog", { name: "conductivity.pdf" })).toContainText("LLZO ionic conductivity");
+  const pdfDialog = page.getByRole("dialog", { name: "conductivity.pdf" });
+  await expect(pdfDialog.getByRole("button", { name: "PDF 原文" })).toBeVisible();
+  await expect(pdfDialog.getByTitle("conductivity.pdf PDF 预览")).toBeVisible();
+  await pdfDialog.getByRole("button", { name: "解析文本" }).click();
+  await expect(pdfDialog).toContainText("LLZO ionic conductivity");
   await page.getByRole("dialog", { name: "conductivity.pdf" }).getByRole("button", { name: "关闭详情" }).click();
   await docxButton.click();
   await expect(page.getByRole("dialog", { name: "capacity.docx" })).toContainText("MXene capacity is 312 mAh/g");
   await page.getByRole("dialog", { name: "capacity.docx" }).getByRole("button", { name: "移除此文档" }).click();
   await expect(docxButton).toBeHidden();
+});
+
+test("bundled literature is presented as PDF rather than example documents", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  await expect(page.locator(".file-tray")).not.toContainText("示例");
+  await page.locator(".file-chip").first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "PDF 原文" })).toBeVisible();
+  await expect(dialog.locator("iframe, object, embed")).toBeVisible();
 });
 
 test("drag and drop accepts text while invalid files show an actionable error", async ({ page }) => {

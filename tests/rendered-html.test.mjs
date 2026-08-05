@@ -37,7 +37,7 @@ test("server-renders the MatTrace dashboard landmarks", async () => {
   assert.match(html, /证据链预览/);
   assert.match(html, /https:\/\/ai\.chipcloud\.cc/);
   assert.match(html, /qwen3\.8-max/);
-  assert.match(html, /使用示例运行/);
+  assert.match(html, /载入公开论文/);
   assert.match(html, /开始真实分析/);
   assert.match(html, /保存当前项目/);
   assert.match(html, /恢复项目/);

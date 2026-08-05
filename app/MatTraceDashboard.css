@@ -1299,6 +1299,10 @@ button.alert-card { width: 100%; text-align: left; font: inherit; cursor: pointe
 .drawer-list p { margin: 4px 0 0; color: #999db0; font-size: 9px; }
 .drawer-list button, .issue-list button { padding: 7px 9px; border: 1px solid #e1dffa; border-radius: 8px; color: #6d58df; background: #faf9ff; font-size: 9px; cursor: pointer; }
 .document-text-preview { display: grid; gap: 12px; }
+.document-view-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.document-view-tabs button { padding: 9px 13px; border: 1px solid #e0e1eb; border-radius: 9px; color: #6d738b; background: white; font-size: 12px; font-weight: 700; cursor: pointer; }
+.document-view-tabs button.active { color: white; border-color: #7259eb; background: #7259eb; }
+.pdf-frame { width: 100%; min-height: calc(100vh - 235px); border: 1px solid #e2e3ec; border-radius: 12px; background: #eef0f5; }
 .document-text-preview section { padding: 16px; border: 1px solid #e7e8f0; border-radius: 12px; background: white; }
 .document-text-preview p { color: #555c75; font-size: 11px; line-height: 1.8; white-space: pre-wrap; }
 .drawer-danger { margin-top: 16px; padding: 10px 14px; border: 1px solid #ffd8dc; border-radius: 9px; color: #dd5361; background: #fff5f6; cursor: pointer; }
