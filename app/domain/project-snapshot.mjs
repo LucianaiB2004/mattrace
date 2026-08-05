@@ -1,3 +1,5 @@
+import { stripSessionDocumentFields } from "./document-workspace.mjs";
+
 const SECRET_FIELD = /(api.?key|authorization|access.?token|secret|credential|password)/i;
 
 export function assertSnapshotHasNoSecret(value, path = "root") {
@@ -17,7 +19,7 @@ export function createProjectSnapshot(state, savedAt = new Date().toISOString())
       gateway: String(state.gateway ?? ""),
       model: String(state.model ?? ""),
     },
-    documents: structuredClone(Array.isArray(state.documents) ? state.documents : []),
+    documents: structuredClone(Array.isArray(state.documents) ? state.documents.map(stripSessionDocumentFields) : []),
     report: state.report ? structuredClone(state.report) : null,
     selectedRecordId: state.selectedRecordId ?? null,
   };
