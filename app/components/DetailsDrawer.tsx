@@ -10,13 +10,19 @@ type DrawerProps = {
 
 export default function DetailsDrawer({ title, subtitle, open, onClose, children }: DrawerProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
-    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") onCloseRef.current(); };
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      opener?.focus();
+    };
+  }, [open]);
   if (!open) return null;
   return (
     <div className="drawer-layer">

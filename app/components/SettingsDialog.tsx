@@ -15,14 +15,20 @@ export default function SettingsDialog({ open, gateway, model, apiKey, onApply, 
   const [draft, setDraft] = useState({ gateway, model, apiKey });
   const [status, setStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
-    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") onCloseRef.current(); };
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      opener?.focus();
+    };
+  }, [open]);
   if (!open) return null;
 
   async function checkConnection() {

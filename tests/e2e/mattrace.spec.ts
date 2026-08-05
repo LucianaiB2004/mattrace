@@ -115,13 +115,19 @@ test("mobile layout stays within the viewport and keyboard Escape closes dialogs
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await waitForHydration(page);
-  await page.getByRole("button", { name: "打开模型配置" }).click();
+  const settingsOpener = page.getByRole("button", { name: "打开模型配置" });
+  await settingsOpener.click();
   await expect(page.getByRole("dialog", { name: "模型配置" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "模型配置" })).toBeHidden();
+  await expect(settingsOpener).toBeFocused();
+  await settingsOpener.click();
+  await page.locator(".modal-dismiss").click({ position: { x: 2, y: 2 } });
+  await expect(page.getByRole("dialog", { name: "模型配置" })).toBeHidden();
+  await expect(settingsOpener).toBeFocused();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: "docs/mattrace-mobile-preview.png", fullPage: true });
+  await page.screenshot({ path: "test-results/mattrace-mobile-preview.png", fullPage: true });
 });
 
 test("PDF and DOCX parsers expose extracted text in document previews", async ({ page }) => {
@@ -140,6 +146,8 @@ test("PDF and DOCX parsers expose extracted text in document previews", async ({
   await page.getByRole("dialog", { name: "conductivity.pdf" }).getByRole("button", { name: "关闭详情" }).click();
   await docxButton.click();
   await expect(page.getByRole("dialog", { name: "capacity.docx" })).toContainText("MXene capacity is 312 mAh/g");
+  await page.getByRole("dialog", { name: "capacity.docx" }).getByRole("button", { name: "移除此文档" }).click();
+  await expect(docxButton).toBeHidden();
 });
 
 test("drag and drop accepts text while invalid files show an actionable error", async ({ page }) => {
@@ -169,9 +177,11 @@ test("settings, issue drawers, all exports, and project lifecycle controls work"
   await settings.getByRole("button", { name: "清除 Key" }).click();
   await settings.getByRole("button", { name: "关闭模型配置" }).click();
 
-  await page.getByRole("button", { name: /缺失条件提醒/ }).click();
+  const missingOpener = page.getByRole("button", { name: /缺失条件提醒/ });
+  await missingOpener.click();
   await expect(page.getByRole("dialog", { name: "缺失条件" })).toContainText("样品相对密度未说明");
   await page.keyboard.press("Escape");
+  await expect(missingOpener).toBeFocused();
   await page.getByRole("button", { name: /冲突检测提醒/ }).click();
   await expect(page.getByRole("dialog", { name: "冲突检测" })).toContainText("差异 42%");
   await page.keyboard.press("Escape");
@@ -195,4 +205,67 @@ test("settings, issue drawers, all exports, and project lifecycle controls work"
   await expect(page.getByText("已保存项目已删除")).toBeVisible();
   await page.getByRole("button", { name: "恢复项目" }).click();
   await expect(page.getByText("没有找到已保存的项目")).toBeVisible();
+});
+
+test("real analysis can be cancelled and malformed model output remains recoverable", async ({ page }) => {
+  let responseMode: "slow" | "malformed" = "slow";
+  await page.route("**/v1/chat/completions", async (route) => {
+    if (responseMode === "slow") {
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ choices: [{ message: { content: responseMode === "malformed" ? "not-json" : "{}" } }] }),
+    });
+  });
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.locator('input[type="file"]').setInputFiles([
+    { name: "a.txt", mimeType: "text/plain", buffer: Buffer.from("A evidence") },
+    { name: "b.txt", mimeType: "text/plain", buffer: Buffer.from("B evidence") },
+    { name: "c.txt", mimeType: "text/plain", buffer: Buffer.from("C evidence") },
+  ]);
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  await page.getByRole("dialog", { name: "模型配置" }).getByLabel("API Key").fill("ephemeral-key");
+  await page.getByRole("dialog", { name: "模型配置" }).getByRole("button", { name: "应用配置" }).click();
+  await page.getByRole("button", { name: "开始真实分析" }).click();
+  await page.getByRole("button", { name: "取消分析" }).click();
+  await expect(page.getByText("分析已取消，可调整后重试")).toBeVisible();
+
+  responseMode = "malformed";
+  await page.getByRole("button", { name: "开始真实分析" }).click();
+  await expect(page.getByText(/模型返回格式无效/).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: "开始真实分析" })).toBeEnabled();
+});
+
+test("every sidebar destination performs its intended navigation action", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  const navigationRegion = page.locator(".nav-list");
+  const destinations = [
+    ["文献管理", "文档管理"],
+    ["证据链", "证据链详情"],
+    ["冲突检测", "冲突检测"],
+    ["报告导出", "导出预览"],
+  ] as const;
+  for (const [navigation, dialog] of destinations) {
+    const button = navigationRegion.getByRole("button", { name: new RegExp(`^${navigation}`) });
+    await button.click();
+    await expect(button).toHaveClass(/active/);
+    await expect(page.getByRole("dialog", { name: dialog })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(button).toBeFocused();
+  }
+  const extraction = navigationRegion.getByRole("button", { name: /^数据提取/ });
+  await extraction.click();
+  await expect(extraction).toHaveClass(/active/);
+  await expect(page.getByRole("heading", { name: "分析结果与证据" })).toBeVisible();
+  const home = navigationRegion.getByRole("button", { name: /^首页/ });
+  await home.click();
+  await expect(home).toHaveClass(/active/);
+  const settings = navigationRegion.getByRole("button", { name: /^设置/ });
+  await settings.click();
+  await expect(settings).toHaveClass(/active/);
+  await expect(page.getByRole("dialog", { name: "模型配置" })).toBeVisible();
 });
