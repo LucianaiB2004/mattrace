@@ -161,7 +161,16 @@ test("bundled literature is presented as PDF rather than example documents", asy
   await page.locator(".file-chip").first().click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("button", { name: "PDF 原文" })).toBeVisible();
-  await expect(dialog.locator("iframe, object, embed")).toBeVisible();
+  const reader = dialog.locator(".pdf-reader");
+  await expect(reader).toBeVisible();
+  await expect(reader.locator(".pdf-page-canvas")).toBeVisible({ timeout: 15_000 });
+  expect(await reader.locator(".pdf-thumbnails").evaluate((element) => element.getBoundingClientRect().width)).toBeLessThanOrEqual(120);
+  await expect(reader.getByText("1 / 28", { exact: true })).toBeVisible();
+  await reader.getByRole("button", { name: "下一页" }).click();
+  await expect(reader.getByText("2 / 28", { exact: true })).toBeVisible();
+  const zoomBefore = await reader.locator(".pdf-zoom-status").textContent();
+  await reader.getByRole("button", { name: "放大" }).click();
+  await expect(reader.locator(".pdf-zoom-status")).not.toHaveText(zoomBefore ?? "");
 });
 
 test("bundled literature exposes complete parsed pages beyond the cover", async ({ page }) => {
@@ -172,6 +181,10 @@ test("bundled literature exposes complete parsed pages beyond the cover", async 
   await dialog.getByRole("button", { name: "解析文本" }).click();
   await expect(dialog).toContainText("第 28 页");
   await expect(dialog).toContainText("Management of heat during charging and discharging", { timeout: 15_000 });
+  await dialog.getByRole("searchbox", { name: "搜索解析文本" }).fill("phonon mean free paths");
+  await expect(dialog.getByText(/找到 1 个页面/)).toBeVisible();
+  await dialog.getByRole("button", { name: /跳转到第 21 页/ }).click();
+  await expect(dialog.locator("#parsed-page-21")).toBeInViewport();
 });
 
 test("bundled PDFs hydrate before entering a real AI request", async ({ page }) => {
