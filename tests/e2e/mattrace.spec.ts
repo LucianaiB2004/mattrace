@@ -284,3 +284,22 @@ test("body typography is readable without breaking the mobile viewport", async (
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+test("mascot and sidebar motion create lively hover feedback", async ({ page }) => {
+  await page.goto("/");
+  await waitForHydration(page);
+  const mascot = page.locator(".mascot-zone img");
+  const mascotAnimation = await mascot.evaluate((element) => getComputedStyle(element).animationName);
+  expect(mascotAnimation).not.toBe("none");
+  const mascotFilterBefore = await mascot.evaluate((element) => getComputedStyle(element).filter);
+  await page.locator(".mascot-zone").hover();
+  const mascotFilterAfter = await mascot.evaluate((element) => getComputedStyle(element).filter);
+  expect(mascotFilterAfter).not.toBe(mascotFilterBefore);
+
+  const nav = page.locator(".nav-item").nth(1);
+  const navBefore = await nav.evaluate((element) => ({ transform: getComputedStyle(element).transform, shadow: getComputedStyle(element).boxShadow }));
+  await nav.hover();
+  const navAfter = await nav.evaluate((element) => ({ transform: getComputedStyle(element).transform, shadow: getComputedStyle(element).boxShadow }));
+  expect(navAfter.transform).not.toBe(navBefore.transform);
+  expect(navAfter.shadow).not.toBe(navBefore.shadow);
+});
