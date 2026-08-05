@@ -60,3 +60,8 @@ test("removes starter preview metadata and dependencies", async () => {
   assert.doesNotMatch(layout, /Starter Project/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
+
+test("local storage explanation matches the modal description typography", async () => {
+  const css = await readFile(new URL("../app/MatTraceDashboard.css", import.meta.url), "utf8");
+  assert.match(css, /\.privacy-box p\s*\{[^}]*font-size:\s*12px;[^}]*line-height:\s*1\.6;/s);
+});

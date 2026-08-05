@@ -1269,7 +1269,7 @@ button.alert-card { width: 100%; text-align: left; font: inherit; cursor: pointe
 
 .privacy-box { margin-top: 15px; padding: 12px; border: 1px solid #e8e5f7; border-radius: 11px; background: #faf9ff; }
 .privacy-box strong { color: #42377d; font-size: 11px; }
-.privacy-box p { margin: 4px 0 0 !important; }
+.privacy-box p { margin: 4px 0 0 !important; color: #777d95; font-size: 12px; line-height: 1.6; }
 .modal-actions.three { justify-content: stretch; }
 .modal-actions.three > button { flex: 1; }
 
