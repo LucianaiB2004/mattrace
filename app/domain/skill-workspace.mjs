@@ -1,4 +1,7 @@
+import JSZip from "jszip";
+
 const STORAGE_KEY = "mattrace.skill.material-evidence-extractor.v1";
+const WORKSPACE_KEY = "mattrace.skill.material-evidence-extractor.workspace.v1";
 
 export const DEFAULT_SKILL_CONTENT = `---
 name: material-evidence-extractor
@@ -30,6 +33,24 @@ description: Extract structured material composition, processing, property, test
 - 缺失字段不由模型补全。
 - 冲突记录保留全部来源，不静默覆盖。`;
 
+const OUTPUT_SCHEMA = `# 输出字段规范\n\n必填字段：record_id、document_id、material_name_raw、material_name_normalized、composition、processing_steps、property_name、value_raw、unit_raw、test_method、test_conditions、source_document、page、evidence_text、missing_conditions、confidence、review_required。\n\n缺失状态仅使用 not_reported、not_applicable 或 unclear。`;
+const AGENT_YAML = `interface:\n  display_name: "MatTrace Material Evidence"\n  short_description: "Extract traceable material data with evidence"\n  default_prompt: "Use $material-evidence-extractor to audit 3-10 material documents."`;
+const RECORD = `{"record_id":"rec-llzto-001","material_name_normalized":"LLZTO","composition":"Li6.4La3Zr1.4Ta0.6O12","processing_steps":"sintered at 900°C","property_name":"thermal conductivity","value_raw":"1.4","unit_raw":"W m-1 K-1","test_method":"TDTR","test_conditions":{"temperature":"room temperature"},"source_document":"Solid Electrolytes 2021.pdf","page":"2","evidence_text":"The room-temperature thermal conductivity was measured as 1.4 W m-1 K-1.","missing_conditions":["relative_density"],"confidence":"high","review_required":false}`;
+
+export const SKILL_FILES = [
+  { path: "SKILL.md", content: DEFAULT_SKILL_CONTENT, category: "contract", editable: true, language: "markdown" },
+  { path: "agents/openai.yaml", content: AGENT_YAML, category: "contract", editable: true, language: "yaml" },
+  { path: "references/output-schema.md", content: OUTPUT_SCHEMA, category: "contract", editable: true, language: "markdown" },
+  { path: "examples/records.jsonl", content: RECORD, category: "example", editable: false, language: "json" },
+  { path: "examples/comparison.csv", content: "material,property,value,unit,source,page,confidence\nLLZTO,thermal conductivity,1.4,W m-1 K-1,Solid Electrolytes 2021.pdf,2,high", category: "example", editable: false, language: "csv" },
+  { path: "examples/evidence-report.md", content: "# Evidence Report\n\nLLZTO thermal conductivity: 1.4 W m-1 K-1. Source: Solid Electrolytes 2021.pdf, page 2. Confidence: high.", category: "example", editable: false, language: "markdown" },
+  { path: "examples/missing-and-conflicts.md", content: "# Missing and Conflicts\n\nrelative_density: not_reported. No comparable conflict detected.", category: "example", editable: false, language: "markdown" },
+  { path: "examples/review-queue.csv", content: "record_id,reason,source,page,priority\nrec-llzto-001,relative density not reported,Solid Electrolytes 2021.pdf,2,medium", category: "example", editable: false, language: "csv" },
+  { path: "scripts/extract-evidence.mjs", content: "export function extractEvidence(document) { return document.pages.flatMap(({ page, text }) => /\\d/.test(text) ? [{ sourceDocument: document.name, page, evidenceText: text }] : []); }", category: "code", editable: false, language: "javascript" },
+  { path: "scripts/normalize-record.mjs", content: "export function normalizeRecord(record) { const missingConditions = Object.entries(record.conditions ?? {}).filter(([, value]) => !value).map(([key]) => key); return { ...record, missingConditions, confidence: record.page && record.evidenceText ? (missingConditions.length ? 'medium' : 'high') : 'low' }; }", category: "code", editable: false, language: "javascript" },
+  { path: "scripts/build-deliverables.mjs", content: "export function buildDeliverables(records) { return { 'records.jsonl': records.map(JSON.stringify).join('\\n'), 'comparison.csv': records.map((record) => [record.material, record.property, record.value, record.unit].join(',')).join('\\n') }; }", category: "code", editable: false, language: "javascript" },
+];
+
 function assertSafeContent(content) {
   const normalized = String(content ?? "").trim();
   if (!normalized) throw new Error("Skill 内容不能为空");
@@ -56,4 +77,33 @@ export function resetSkill(storage) {
 
 export function buildSkillDownload(content) {
   return { filename: "SKILL.md", content: assertSafeContent(content), mime: "text/markdown" };
+}
+
+export function loadSkillWorkspace(storage) {
+  let overrides = {};
+  try { overrides = JSON.parse(storage?.getItem(WORKSPACE_KEY) || "{}"); } catch { overrides = {}; }
+  const legacy = storage?.getItem(STORAGE_KEY);
+  if (legacy && !overrides["SKILL.md"]) overrides["SKILL.md"] = legacy;
+  return { files: SKILL_FILES.map((file) => ({ ...file, content: overrides[file.path] ?? file.content })) };
+}
+
+export function saveSkillFile(storage, path, content) {
+  const file = SKILL_FILES.find((item) => item.path === path);
+  if (!file) throw new Error("Skill 文件不存在");
+  if (!file.editable) throw new Error("该 Skill 文件为只读");
+  const safe = assertSafeContent(content);
+  const workspace = loadSkillWorkspace(storage);
+  const overrides = Object.fromEntries(workspace.files.filter((item) => item.editable).map((item) => [item.path, item.path === path ? safe : item.content]));
+  storage?.setItem(WORKSPACE_KEY, JSON.stringify(overrides));
+  if (path === "SKILL.md") storage?.setItem(STORAGE_KEY, safe);
+  return safe;
+}
+
+export function resetSkillWorkspace(storage) { storage?.removeItem(WORKSPACE_KEY); storage?.removeItem(STORAGE_KEY); return loadSkillWorkspace(storage); }
+
+export async function buildSkillZip(workspace) {
+  const zip = new JSZip();
+  const root = zip.folder("material-evidence-extractor");
+  for (const file of workspace.files) root.file(file.path, assertSafeContent(file.content));
+  return zip.generateAsync({ type: "blob" });
 }

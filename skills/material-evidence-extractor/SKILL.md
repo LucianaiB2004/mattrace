@@ -5,6 +5,10 @@ description: Use when extracting structured material composition, processing, pr
 
 # Material Evidence Extractor
 
+## 任务描述
+
+输入 3-10 篇论文、专利或技术数据表（TDS），抽取材料组成、实验条件、性能指标、单位、测试条件、来源页码、缺失字段和可信度。输出 JSON/CSV 数据表、证据链、缺失条件报告、可信度评分和可复查引用。
+
 ## 核心原则
 
 把每个性能值作为一条独立证据记录。记录必须同时回答：什么材料、如何制备、测了什么、在什么条件下测量、原文在哪里。缺失内容标记为缺失，不用常识补写。

@@ -21,5 +21,15 @@ test("contains one valid material evidence skill", async () => {
   assert.match(skill, /证据链/);
   assert.match(skill, /缺失条件/);
   assert.match(skill, /冲突/);
+  assert.match(skill, /3-10/);
+  assert.match(skill, /专利/);
+  assert.match(skill, /TDS/);
+  assert.match(skill, /JSON\/CSV/);
+  const required = [
+    "agents/openai.yaml", "references/output-schema.md", "examples/records.jsonl",
+    "examples/comparison.csv", "examples/evidence-report.md", "examples/missing-and-conflicts.md",
+    "examples/review-queue.csv", "scripts/extract-evidence.mjs", "scripts/normalize-record.mjs",
+    "scripts/build-deliverables.mjs",
+  ];
+  for (const path of required) assert.ok((await readFile(new URL(`material-evidence-extractor/${path}`, skillRoot), "utf8")).trim(), `${path} must exist`);
 });
-

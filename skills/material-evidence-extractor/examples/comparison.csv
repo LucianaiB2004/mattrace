@@ -1,0 +1,2 @@
+record_id,material,property,value,unit,test_method,temperature,source,page,confidence
+rec-llzto-001,LLZTO,thermal conductivity,1.4,W m-1 K-1,TDTR,room temperature,Solid Electrolytes 2021.pdf,2,high

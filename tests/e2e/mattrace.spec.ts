@@ -468,20 +468,32 @@ test("Skill manager edits, persists, restores, and exports the competition Skill
   await skillNavigation.click();
   await expect(page.getByRole("dialog", { name: "Skill 管理" })).toBeVisible();
   await expect(page.getByText("material-evidence-extractor").last()).toBeVisible();
+  await page.getByRole("button", { name: "完整文件" }).click();
+  await expect(page.getByRole("button", { name: /examples\/records.jsonl/ })).toBeVisible();
+  await page.getByRole("button", { name: /examples\/records.jsonl/ }).click();
+  await expect(page.getByText(/rec-llzto-001/)).toBeVisible();
+  await page.getByRole("button", { name: /scripts\/normalize-record.mjs/ }).click();
+  await expect(page.getByText(/normalizeRecord/)).toBeVisible();
+  await page.getByRole("button", { name: /^SKILL.md/ }).click();
 
-  await page.getByRole("button", { name: "编辑 Skill" }).click();
+  await page.getByRole("button", { name: "编辑当前文件" }).click();
   const editor = page.getByRole("textbox", { name: "Skill Markdown 编辑器" });
   await editor.fill(`${await editor.inputValue()}\n\n## 团队规则\n进入人工复核。`);
-  await page.getByRole("button", { name: "保存到浏览器" }).click();
+  await page.getByRole("button", { name: "保存当前文件" }).click();
   await page.reload();
   await waitForHydration(page);
   await navigation.getByRole("button", { name: /^Skill 管理/ }).click();
-  await page.getByRole("button", { name: "编辑 Skill" }).click();
+  await page.getByRole("button", { name: "完整文件" }).click();
+  await page.getByRole("button", { name: /^SKILL.md/ }).click();
+  await page.getByRole("button", { name: "编辑当前文件" }).click();
   await expect(page.getByRole("textbox", { name: "Skill Markdown 编辑器" })).toHaveValue(/团队规则/);
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "导出 SKILL.md" }).click();
   expect((await downloadPromise).suggestedFilename()).toBe("SKILL.md");
+  const zipPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出完整 Skill ZIP" }).click();
+  expect((await zipPromise).suggestedFilename()).toBe("material-evidence-extractor.zip");
   await page.getByRole("button", { name: "恢复默认" }).click();
-  await expect(page.getByRole("textbox", { name: "Skill Markdown 编辑器" })).not.toHaveValue(/团队规则/);
+  await expect(page.getByText(/团队规则/)).toBeHidden();
 });
