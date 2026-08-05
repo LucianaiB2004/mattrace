@@ -327,3 +327,15 @@ test("workspace cards and data rows provide presentation-ready motion", async ({
   await page.waitForTimeout(220);
   expect(await row.evaluate((element) => getComputedStyle(element).transform)).not.toBe(rowBefore);
 });
+
+test("reduced motion disables decorative animations", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await waitForHydration(page);
+
+  for (const selector of [".mascot-zone img", ".mascot-zone::before", ".upload-art", ".nav-item.active::after", ".skill-pill span"]) {
+    const [base, pseudo] = selector.split("::");
+    const animationName = await page.locator(base).first().evaluate((element, pseudoElement) => getComputedStyle(element, pseudoElement ? `::${pseudoElement}` : null).animationName, pseudo ?? null);
+    expect(animationName).toBe("none");
+  }
+});
