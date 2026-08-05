@@ -20,7 +20,7 @@ export default function DetailsDrawer({ title, subtitle, open, onClose, children
   if (!open) return null;
   return (
     <div className="drawer-layer">
-      <button className="drawer-backdrop" type="button" aria-label="关闭详情" onClick={onClose} />
+      <button className="drawer-backdrop" type="button" aria-label="点击遮罩关闭详情" onClick={onClose} />
       <aside className="details-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
         <header>
           <div><p className="eyebrow">MATTRACE INSPECTOR</p><h2 id="drawer-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div>

@@ -41,3 +41,5 @@ yarn-error.log*
 /.browser-test/
 /.logs/
 /public/mattrace-mascot-key.png
+/test-results/
+/playwright-report/
