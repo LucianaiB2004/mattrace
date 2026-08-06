@@ -1,4 +1,6 @@
 export const DEFAULT_PROVIDER = Object.freeze({
+  provider: "chipcloud",
+  protocol: "openai-chat",
   gateway: "https://ai.chipcloud.cc",
   model: "qwen3.8-max",
   apiKey: "",
@@ -88,4 +90,3 @@ export function serializeExport(format, records) {
 
   throw new Error(`Unsupported export format: ${format}`);
 }
-

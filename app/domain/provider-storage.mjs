@@ -1,10 +1,14 @@
 const STORAGE_KEY = "mattrace.provider.v1";
 
+import { resolveProviderPreset } from "./provider-presets.mjs";
+
 function normalize(config, defaults) {
   const gateway = String(config?.gateway ?? "").trim().replace(/\/+$/, "");
   const model = String(config?.model ?? "").trim();
   if (!/^https?:\/\//i.test(gateway) || !model) return { ...defaults };
-  return { gateway, model, apiKey: String(config?.apiKey ?? "").trim() };
+  const protocol = config?.protocol === "openai-responses" ? "openai-responses" : "openai-chat";
+  const provider = String(config?.provider ?? "").trim() || resolveProviderPreset(gateway, protocol);
+  return { provider, protocol, gateway, model, apiKey: String(config?.apiKey ?? "").trim() };
 }
 
 export function loadProvider(storage, defaults) {

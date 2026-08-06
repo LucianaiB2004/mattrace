@@ -80,6 +80,8 @@ export default function MatTraceDashboard() {
   const [gateway, setGateway] = useState(initialProvider.gateway);
   const [model, setModel] = useState(initialProvider.model);
   const [apiKey, setApiKey] = useState(initialProvider.apiKey);
+  const [provider, setProvider] = useState(initialProvider.provider);
+  const [protocol, setProtocol] = useState(initialProvider.protocol);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [documentPreview, setDocumentPreview] = useState<ParsedDocument | null>(null);
@@ -328,7 +330,7 @@ export default function MatTraceDashboard() {
         </aside></div>
       </section>
 
-      {settingsOpen && <SettingsDialog open gateway={gateway} model={model} apiKey={apiKey} onClose={() => setSettingsOpen(false)} onApply={(value) => { const saved = saveProvider(window.localStorage, value); setGateway(saved.gateway); setModel(saved.model); setApiKey(saved.apiKey); }} onNotify={notify} />}
+      {settingsOpen && <SettingsDialog open gateway={gateway} model={model} apiKey={apiKey} provider={provider} protocol={protocol} onClose={() => setSettingsOpen(false)} onApply={(value) => { const saved = saveProvider(window.localStorage, value); const providerChanged = saved.provider !== provider || saved.protocol !== protocol || saved.gateway !== gateway || saved.model !== model; setGateway(saved.gateway); setModel(saved.model); setApiKey(saved.apiKey); setProvider(saved.provider); setProtocol(saved.protocol); if (providerChanged) { setReport(null); setSelectedRecordId(""); } }} onNotify={notify} />}
       <ToastRegion toasts={toasts} />
 
       <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined} editableTitle={!!documentPreview && !isBusy} onRenameTitle={renamePreviewDocument}>
