@@ -1,11 +1,6 @@
 import { extractJsonObject, normalizeAnalysisResult } from "../domain/analysis.mjs";
 import { buildAnalysisMessages, buildDocumentAnalysisMessages, selectEvidenceExcerpts, selectedEvidencePages } from "../domain/prompt.mjs";
-
-function baseV1(gateway) {
-  const clean = String(gateway ?? "").trim().replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(clean)) throw new Error("API 网关必须是有效的 HTTP(S) 地址");
-  return clean.endsWith("/v1") ? clean : `${clean}/v1`;
-}
+import { requestBody, requestUrl, responseText } from "./provider-protocol.mjs";
 
 export function requestGateway(gateway, runtimeLocation = globalThis.location) {
   const clean = String(gateway ?? "").trim().replace(/\/+$/, "");
@@ -43,52 +38,29 @@ function safeError(prefix, detail, config) {
   return new Error(`${prefix}：${safe}`);
 }
 
-function contentFromCompletion(payload) {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) throw new Error("模型响应缺少 message.content");
-  return content;
-}
-
-async function contentFromResponse(response) {
-  if (response.headers?.get?.("content-type")?.includes("text/event-stream")) {
-    const chunks = [];
-    for (const line of (await response.text()).split(/\r?\n/)) {
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (!data || data === "[DONE]") continue;
-      try {
-        const event = JSON.parse(data);
-        const content = event?.choices?.[0]?.delta?.content ?? event?.choices?.[0]?.message?.content;
-        if (typeof content === "string") chunks.push(content);
-      } catch {
-        throw new Error("模型流式响应包含无效事件");
-      }
-    }
-    if (!chunks.length) throw new Error("模型流式响应缺少内容");
-    return chunks.join("");
-  }
-  return contentFromCompletion(await response.json());
-}
-
 export async function testProvider(config, fetchImpl = fetch, signal) {
-  const root = baseV1(requestGateway(config.gateway));
+  const resolved = { ...config, protocol: config.protocol ?? "openai-chat", gateway: requestGateway(config.gateway) };
   const requestHeaders = headers(config);
-  const models = await fetchImpl(`${root}/models`, { method: "GET", headers: requestHeaders, signal });
+  if (resolved.protocol === "openai-responses") {
+    const response = await fetchImpl(requestUrl(resolved), {
+      method: "POST", headers: requestHeaders, signal,
+      body: JSON.stringify(requestBody(resolved, [{ role: "user", content: "Reply OK" }], { maxTokens: 16 })),
+    });
+    if (!response.ok) throw safeError("连接失败", await errorMessage(response), config);
+    await responseText(resolved.protocol, response);
+    return { ok: true, method: "responses" };
+  }
+  const models = await fetchImpl(requestUrl(resolved, "models"), { method: "GET", headers: requestHeaders, signal });
   if (models.ok) return { ok: true, method: "models" };
   if (![404, 405, 501].includes(models.status)) {
     throw safeError("连接失败", await errorMessage(models), config);
   }
 
-  const chat = await fetchImpl(`${root}/chat/completions`, {
+  const chat = await fetchImpl(requestUrl(resolved), {
     method: "POST",
     headers: requestHeaders,
     signal,
-    body: JSON.stringify({
-      model: config.model,
-      messages: [{ role: "user", content: "Reply OK" }],
-      max_tokens: 8,
-      temperature: 0,
-    }),
+    body: JSON.stringify(requestBody(resolved, [{ role: "user", content: "Reply OK" }], { maxTokens: 8, temperature: 0 })),
   });
   if (!chat.ok) throw safeError("连接失败", await errorMessage(chat), config);
   return { ok: true, method: "chat" };
@@ -102,23 +74,17 @@ export async function analyzeDocuments(
   onStage = () => {},
 ) {
   if (!Array.isArray(documents) || documents.length === 0) throw new Error("请先添加可解析的文档");
-  const root = baseV1(requestGateway(config.gateway));
+  const resolved = { ...config, protocol: config.protocol ?? "openai-chat", gateway: requestGateway(config.gateway) };
   const requestHeaders = headers(config);
   onStage(0);
   onStage(1);
   let response;
   try {
-    response = await fetchImpl(`${root}/chat/completions`, {
+    response = await fetchImpl(requestUrl(resolved), {
       method: "POST",
       headers: requestHeaders,
       signal,
-      body: JSON.stringify({
-        model: String(config.model ?? "").trim(),
-        messages: buildAnalysisMessages(documents),
-        temperature: 0.1,
-        max_tokens: 512,
-        response_format: { type: "json_object" },
-      }),
+      body: JSON.stringify(requestBody(resolved, buildAnalysisMessages(documents), { maxTokens: 512, json: true })),
     });
   } catch (error) {
     if (error?.name === "AbortError") throw error;
@@ -126,11 +92,9 @@ export async function analyzeDocuments(
   }
   if (!response.ok) throw safeError("分析请求失败", await errorMessage(response), config);
 
-  let payload;
   try {
-    payload = await response.json();
     onStage(2);
-    const raw = extractJsonObject(contentFromCompletion(payload));
+    const raw = extractJsonObject(await responseText(resolved.protocol, response));
     onStage(3);
     const result = normalizeAnalysisResult(raw);
     onStage(4);
@@ -144,22 +108,14 @@ export async function analyzeDocuments(
 
 export async function analyzeDocument(config, document, fetchImpl = fetch, signal) {
   if (!document) throw new Error("缺少待分析文档");
-  const root = baseV1(requestGateway(config.gateway));
+  const resolved = { ...config, protocol: config.protocol ?? "openai-chat", gateway: requestGateway(config.gateway) };
   let response;
   try {
-    response = await fetchImpl(`${root}/chat/completions`, {
+    response = await fetchImpl(requestUrl(resolved), {
       method: "POST",
       headers: headers(config),
       signal,
-      body: JSON.stringify({
-        model: String(config.model ?? "").trim(),
-        messages: buildDocumentAnalysisMessages(document),
-        temperature: 0.1,
-        max_tokens: 4096,
-        stream: true,
-        enable_thinking: false,
-        response_format: { type: "json_object" },
-      }),
+      body: JSON.stringify(requestBody(resolved, buildDocumentAnalysisMessages(document), { maxTokens: 4096, stream: true, json: true })),
     });
   } catch (error) {
     if (error?.name === "AbortError") throw error;
@@ -167,7 +123,7 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
   }
   if (!response.ok) throw safeError("分析请求失败", await errorMessage(response), config);
   try {
-    const raw = extractJsonObject(await contentFromResponse(response));
+    const raw = extractJsonObject(await responseText(resolved.protocol, response));
     const submittedPages = new Set(selectedEvidencePages(document));
     const claimedPages = raw.checked_pages ?? raw.checkedPages;
     const checkedPages = Array.isArray(claimedPages)

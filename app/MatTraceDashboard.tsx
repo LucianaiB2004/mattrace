@@ -238,7 +238,7 @@ export default function MatTraceDashboard() {
     try {
       setAnalysisProgress({ completed: 0, total: selectedDocuments.length, current: "准备逐篇分析" });
       let completed = 0;
-      const outcomes = await analyzeDocumentBatch({ gateway, model, apiKey }, selectedDocuments, {
+      const outcomes = await analyzeDocumentBatch({ gateway, model, apiKey, provider, protocol }, selectedDocuments, {
         concurrency: 2,
         signal: controller.signal,
         analyze: async (config: object, document: ParsedDocument, fetchImpl: typeof fetch, signal: AbortSignal) => analyzeDocument(config, await hydrateDocument(document), fetchImpl, signal),
