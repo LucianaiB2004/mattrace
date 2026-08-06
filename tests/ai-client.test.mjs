@@ -20,7 +20,8 @@ const documents = [{
 }];
 
 test("local MatTrace routes the default gateway through its CORS proxy", () => {
-  assert.equal(requestGateway("https://ai.chipcloud.cc", { hostname: "localhost" }), "http://127.0.0.1:8788");
+  assert.equal(requestGateway("https://ai.chipcloud.cc", { hostname: "localhost" }), "http://127.0.0.1:8788/chipcloud");
+  assert.equal(requestGateway("https://ark.cn-beijing.volces.com/api/plan/v3", { hostname: "localhost" }), "http://127.0.0.1:8788/ark-plan");
   assert.equal(requestGateway("https://ai.chipcloud.cc", { hostname: "example.github.io" }), "https://ai.chipcloud.cc");
   assert.equal(requestGateway("https://other.example", { hostname: "localhost" }), "https://other.example");
 });

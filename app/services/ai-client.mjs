@@ -5,7 +5,10 @@ import { requestBody, requestUrl, responseText } from "./provider-protocol.mjs";
 export function requestGateway(gateway, runtimeLocation = globalThis.location) {
   const clean = String(gateway ?? "").trim().replace(/\/+$/, "");
   const local = runtimeLocation?.hostname === "localhost" || runtimeLocation?.hostname === "127.0.0.1";
-  return local && clean === "https://ai.chipcloud.cc" ? "http://127.0.0.1:8788" : clean;
+  if (!local) return clean;
+  if (clean === "https://ai.chipcloud.cc") return "http://127.0.0.1:8788/chipcloud";
+  if (clean === "https://ark.cn-beijing.volces.com/api/plan/v3") return "http://127.0.0.1:8788/ark-plan";
+  return clean;
 }
 
 function headers(config) {

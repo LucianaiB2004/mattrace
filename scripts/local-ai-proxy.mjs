@@ -1,8 +1,7 @@
 import { createServer } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { buildUpstreamHeaders, hasCompletedSse, responseHeaders } from "./proxy-transport.mjs";
+import { buildUpstreamHeaders, hasCompletedSse, resolveUpstream, responseHeaders } from "./proxy-transport.mjs";
 
-const upstream = "https://ai.chipcloud.cc";
 const port = Number(process.argv[2] || 8788);
 const allowedOrigins = new Set(["http://localhost:3000", "http://127.0.0.1:3000"]);
 
@@ -45,12 +44,13 @@ function requestUpstream(url, options, body) {
 createServer(async (request, response) => {
   const origin = request.headers.origin || "";
   const cors = corsHeaders(origin);
+  const upstream = resolveUpstream(request.url);
   if (request.method === "OPTIONS") {
     response.writeHead(204, cors);
     response.end();
     return;
   }
-  if (!allowedOrigins.has(origin) || !request.url?.startsWith("/v1/")) {
+  if (!allowedOrigins.has(origin) || !upstream) {
     response.writeHead(403, { ...cors, "Content-Type": "application/json" });
     response.end('{"error":{"message":"Local proxy only accepts MatTrace localhost requests"}}');
     return;
@@ -60,7 +60,7 @@ createServer(async (request, response) => {
     for await (const chunk of request) chunks.push(chunk);
     const requestBody = chunks.length ? Buffer.concat(chunks) : Buffer.alloc(0);
     const streaming = requestBody.includes(Buffer.from('"stream":true'));
-    const upstreamResponse = await requestUpstream(`${upstream}${request.url}`, {
+    const upstreamResponse = await requestUpstream(`${upstream.origin}${upstream.pathname}`, {
       method: request.method,
       headers: buildUpstreamHeaders(request.headers, requestBody.length, streaming),
     }, requestBody);
