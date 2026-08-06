@@ -1,0 +1,4 @@
+{"document_id":"doc-paper-01","status":"extracted","page_count":14,"checked_pages":[2],"record_count":1,"reason":""}
+{"document_id":"doc-tds-02","status":"no_evidence","page_count":3,"checked_pages":[1,2,3],"record_count":0,"reason":"已检查全部文本页，未发现带单位与测试条件的定量材料性能"}
+{"document_id":"doc-scan-03","status":"failed","page_count":8,"checked_pages":[],"record_count":0,"reason":"扫描 PDF 无可提取文本层，需要 OCR 或人工复核"}
+{"document_id":"doc-patent-04","status":"cancelled","page_count":22,"checked_pages":[1,2],"record_count":0,"reason":"用户取消批次；不得将未完成页面标记为已检查"}

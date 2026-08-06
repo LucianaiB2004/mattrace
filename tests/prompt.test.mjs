@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildDocumentAnalysisMessages, selectEvidenceExcerpts } from "../app/domain/prompt.mjs";
+import { buildDocumentAnalysisMessages, selectedEvidencePages, selectEvidenceExcerpts } from "../app/domain/prompt.mjs";
 
 test("analysis prompt applies the Skill contract to one document", () => {
   const messages = buildDocumentAnalysisMessages({
@@ -13,6 +13,9 @@ test("analysis prompt applies the Skill contract to one document", () => {
   assert.match(messages[0].content, /缺失字段/);
   assert.match(messages[0].content, /来源页码/);
   assert.match(messages[0].content, /全部可追溯的定量性能记录/);
+  assert.match(messages[0].content, /material_name_raw/);
+  assert.match(messages[0].content, /source_document/);
+  assert.match(messages[0].content, /checked_pages/);
   assert.doesNotMatch(messages[0].content, /最有代表性的 1 条/);
   assert.match(messages[1].content, /paper\.pdf/);
 });
@@ -40,4 +43,16 @@ test("evidence selection prioritizes a later numeric materials table over introd
   ] }, 400);
   assert.match(excerpt, /第 21 页/);
   assert.match(excerpt, /Cs2LiNd/);
+});
+
+test("document prompt describes excerpt coverage honestly and exposes only submitted pages", () => {
+  const document = { name: "paper.pdf", pages: [
+    { page: 1, text: "Cover without evidence." },
+    { page: 2, text: "LLZO ionic conductivity was 1.2 mS/cm at 25°C." },
+    { page: 9, text: "Appendix without evidence." },
+  ] };
+  const messages = buildDocumentAnalysisMessages(document);
+  assert.match(messages[1].content, /仅检查以下已提供的证据片段/);
+  assert.doesNotMatch(messages[1].content, /逐页检查这篇文档/);
+  assert.deepEqual(selectedEvidencePages(document), [2]);
 });

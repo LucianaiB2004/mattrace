@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   SKILL_FILES,
   DEFAULT_SKILL_CONTENT,
@@ -10,6 +11,7 @@ import {
   loadSkill,
   resetSkill,
   saveSkill,
+  summarizeSkillFiles,
 } from "../app/domain/skill-workspace.mjs";
 import JSZip from "jszip";
 
@@ -32,12 +34,17 @@ test("Skill workspace loads the competition Skill and persists an edited version
 
 test("complete workspace exposes editable contracts, examples, and core code", () => {
   const workspace = loadSkillWorkspace(memoryStorage());
-  assert.equal(workspace.files.length, 14);
-  assert.deepEqual(workspace.files.filter((file) => file.editable).map((file) => file.path), ["SKILL.md", "agents/openai.yaml", "references/output-schema.md", "references/coverage-and-comparability.md"]);
+  assert.equal(workspace.files.length, 21);
+  assert.deepEqual(workspace.files.filter((file) => file.editable).map((file) => file.path).sort(), ["SKILL.md", "agents/openai.yaml", "references/output-schema.md", "references/coverage-and-comparability.md", "references/evaluation-protocol.md", "references/failure-cases.md"].sort());
   assert.ok(SKILL_FILES.some((file) => file.path === "examples/records.jsonl"));
   assert.ok(SKILL_FILES.some((file) => file.path === "scripts/extract-evidence.mjs"));
   assert.ok(SKILL_FILES.some((file) => file.path === "examples/coverage-matrix.csv"));
   assert.ok(SKILL_FILES.some((file) => file.path === "examples/comparability-passports.jsonl"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "examples/document-outcomes.jsonl"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "references/input-schema.json"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "references/output-schema.json"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "scripts/score-uplift.mjs"));
+  assert.match(DEFAULT_SKILL_CONTENT, /比赛严格模式输入 3-10 篇/);
 });
 
 test("workspace persists editable files and rejects read-only or secret content", () => {
@@ -45,7 +52,7 @@ test("workspace persists editable files and rejects read-only or secret content"
   saveSkillFile(storage, "agents/openai.yaml", "interface:\n  display_name: MatTrace");
   assert.match(loadSkillWorkspace(storage).files.find((file) => file.path === "agents/openai.yaml").content, /MatTrace/);
   assert.throws(() => saveSkillFile(storage, "examples/records.jsonl", "changed"), /只读/);
-  assert.throws(() => saveSkillFile(storage, "SKILL.md", "API Key: sk-secretvalue1234567890"), /敏感凭证/);
+  assert.throws(() => saveSkillFile(storage, "SKILL.md", "API Key: credential_value_1234567890"), /敏感凭证/);
 });
 
 test("complete ZIP contains the canonical root folder and every file", async () => {
@@ -54,10 +61,22 @@ test("complete ZIP contains the canonical root folder and every file", async () 
   for (const file of SKILL_FILES) assert.ok(zip.file(`material-evidence-extractor/${file.path}`), file.path);
 });
 
+test("browser Skill workspace mirrors the canonical repository files byte for byte", async () => {
+  const root = new URL("../skills/material-evidence-extractor/", import.meta.url);
+  for (const file of SKILL_FILES) {
+    const canonical = await readFile(new URL(file.path, root), "utf8");
+    assert.equal(file.content.replaceAll("\r\n", "\n"), canonical.replaceAll("\r\n", "\n"), file.path);
+  }
+});
+
+test("Skill overview derives its counts from the canonical workspace", () => {
+  assert.deepEqual(summarizeSkillFiles(SKILL_FILES), { contract: 8, example: 8, code: 5 });
+});
+
 test("Skill workspace rejects empty content and credential-like secrets", () => {
   const storage = memoryStorage();
   assert.throws(() => saveSkill(storage, "  "), /不能为空/);
-  assert.throws(() => saveSkill(storage, `${DEFAULT_SKILL_CONTENT}\nAPI Key: sk-secretvalue1234567890`), /敏感凭证/);
+  assert.throws(() => saveSkill(storage, `${DEFAULT_SKILL_CONTENT}\nAPI Key: credential_value_1234567890`), /敏感凭证/);
 });
 
 test("Skill workspace restores default content and builds a Markdown download", () => {
@@ -67,7 +86,7 @@ test("Skill workspace restores default content and builds a Markdown download", 
   assert.equal(loadSkill(storage), DEFAULT_SKILL_CONTENT);
   assert.deepEqual(buildSkillDownload(DEFAULT_SKILL_CONTENT), {
     filename: "SKILL.md",
-    content: DEFAULT_SKILL_CONTENT,
+    content: DEFAULT_SKILL_CONTENT.trim(),
     mime: "text/markdown",
   });
 });

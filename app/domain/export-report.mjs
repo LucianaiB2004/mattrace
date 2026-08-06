@@ -75,13 +75,48 @@ function buildMarkdown(report) {
   return lines.join("\n");
 }
 
+export function toCanonicalReport(report) {
+  const missingByRecord = new Map();
+  for (const item of report.missingConditions ?? []) {
+    const fields = missingByRecord.get(item.recordId) ?? [];
+    fields.push(item.field);
+    missingByRecord.set(item.recordId, fields);
+  }
+  const records = report.records.map((record) => ({
+    record_id: record.id,
+    document_id: record.documentId ?? record.sourceDocument,
+    material_name_raw: record.materialRaw ?? record.material,
+    material_name_normalized: record.material,
+    property_name: record.property,
+    value_raw: record.valueRaw ?? String(record.value),
+    unit_raw: record.unit,
+    value_status: record.valueKind && record.valueKind !== "exact" ? "reported" : "reported",
+    normalized_value: record.normalizedValue ?? null,
+    normalized_unit: record.normalizedUnit ?? null,
+    source_document: record.sourceDocument,
+    page: record.page,
+    evidence_text: record.evidence,
+    missing_conditions: [...new Set(missingByRecord.get(record.id) ?? [])],
+    confidence: record.confidence,
+    confidence_reasons: record.confidenceReasons ?? [],
+    review_required: Boolean(record.reviewRequired || missingByRecord.has(record.id)),
+  }));
+  return {
+    coverage_matrix: (report.coverageMatrix ?? []).map((row) => ({ document_id: row.documentId ?? row.documentName, status: row.status, checked_pages: row.checkedPages ?? [], record_count: row.recordCount ?? 0, reason: row.reason ?? "" })),
+    records,
+    missing_conditions: report.missingConditions ?? [],
+    conflicts: report.conflicts ?? [],
+    review_queue: records.filter((record) => record.review_required).map((record) => ({ record_id: record.record_id, reasons: [...record.missing_conditions, ...record.confidence_reasons] })),
+  };
+}
+
 export function buildExport(format, report) {
   requireReport(report);
   if (format === "json") {
     return {
       filename: "mattrace-report.json",
       mime: "application/json",
-      content: JSON.stringify(report, null, 2),
+      content: JSON.stringify(toCanonicalReport(report), null, 2),
     };
   }
   if (format === "csv") {

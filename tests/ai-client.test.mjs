@@ -118,6 +118,49 @@ test("single-document analysis supports an explicit no-evidence outcome", async 
   assert.equal(result.records.length, 0);
 });
 
+test("single-document analysis never invents checked pages when the model omits them", async () => {
+  const result = await analyzeDocument(config, documents[0], async () => response(200, {
+    choices: [{ message: { content: JSON.stringify({ status: "no_evidence", records: [], reason: "未发现证据" }) } }],
+  }));
+  assert.deepEqual(result.checkedPages, []);
+});
+
+test("single-document analysis rejects model page claims outside submitted evidence", async () => {
+  const result = await analyzeDocument(config, documents[0], async () => response(200, {
+    choices: [{ message: { content: JSON.stringify({ status: "no_evidence", checkedPages: [1, 99], records: [], reason: "未发现证据" }) } }],
+  }));
+  assert.deepEqual(result.checkedPages, [1]);
+});
+
+test("single-document analysis drops records that cite pages outside submitted evidence", async () => {
+  const result = await analyzeDocument(config, documents[0], async () => response(200, {
+    choices: [{ message: { content: JSON.stringify({
+      status: "extracted", checkedPages: [1, 99], records: [
+        { material: "LLZO", process: "固相烧结", property: "离子电导率", value: 1.2, unit: "mS/cm", conditions: { temperature: "25°C", method: "EIS", frequency_range: "1 Hz-1 MHz" }, sourceDocument: "paper.txt", page: 1, evidence: "LLZO conductivity is 1.2 mS/cm at 25°C." },
+        { material: "LATP", process: "固相烧结", property: "离子电导率", value: 9.9, unit: "mS/cm", conditions: { temperature: "25°C", method: "EIS", frequency_range: "1 Hz-1 MHz" }, sourceDocument: "paper.txt", page: 99, evidence: "LATP conductivity is 9.9 mS/cm at 25°C." },
+      ],
+    }) } }],
+  }));
+  assert.deepEqual(result.checkedPages, [1]);
+  assert.equal(result.records.length, 1);
+  assert.equal(result.records[0].material, "LLZO");
+});
+
+test("single-document analysis downgrades evidence text absent from the submitted excerpt", async () => {
+  const result = await analyzeDocument(config, documents[0], async () => response(200, {
+    choices: [{ message: { content: JSON.stringify({
+      status: "extracted", checkedPages: [1], records: [{
+        material: "LLZO", process: "固相烧结", property: "离子电导率", value: 9.9, unit: "mS/cm",
+        conditions: { temperature: "25°C", method: "EIS", frequency_range: "1 Hz-1 MHz" },
+        sourceDocument: "paper.txt", page: 1, evidence: "LLZO conductivity is 9.9 mS/cm at 25°C.",
+      }],
+    }) } }],
+  }));
+  assert.equal(result.records[0].confidence, "low");
+  assert.equal(result.records[0].reviewRequired, true);
+  assert.match(result.records[0].confidenceReasons.join(" "), /提交的原文片段/);
+});
+
 test("single-document analysis merges an OpenAI-compatible SSE response", async () => {
   let requestBody;
   const json = JSON.stringify({ status: "extracted", checkedPages: [1], records: [{ material: "LLZO", process: "固相烧结", property: "离子电导率", value: 1.2, unit: "mS/cm", conditions: { temperature: "25°C" }, sourceDocument: "paper.txt", page: 1, evidence: "LLZO conductivity is 1.2 mS/cm at 25°C.", confidence: "high" }] });

@@ -1273,6 +1273,9 @@ tbody tr:last-child td {
 .drop-zone.dragging { border-color: #7058f2; background: #f1edff; transform: translateY(-2px); }
 .tray-heading { justify-content: space-between; }
 .tray-heading p { margin: 0; }
+.competition-mode { display: inline-flex; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.competition-mode.strict { color: #087b5a; background: #e6f8f1; }
+.competition-mode.demo { color: #9a6414; background: #fff5dc; }
 .file-chip i { display: block; margin-top: 2px; color: #9ca2b7; font-size: var(--text-meta); font-style: normal; }
 .skill-pill { cursor: pointer; }
 

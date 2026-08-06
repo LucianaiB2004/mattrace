@@ -34,6 +34,10 @@ test("contains one valid material evidence skill", async () => {
     "scripts/build-deliverables.mjs",
     "references/coverage-and-comparability.md", "examples/coverage-matrix.csv",
     "examples/comparability-passports.jsonl",
+    "examples/document-outcomes.jsonl", "references/evaluation-protocol.md",
+    "references/failure-cases.md", "references/input-schema.json", "references/output-schema.json",
+    "scripts/score-uplift.mjs",
+    "scripts/verify-skill.mjs",
   ];
   for (const path of required) assert.ok((await readFile(new URL(`material-evidence-extractor/${path}`, skillRoot), "utf8")).trim(), `${path} must exist`);
 });

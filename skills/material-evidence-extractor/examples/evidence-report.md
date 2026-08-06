@@ -5,4 +5,4 @@
 - Result: 1.4 W m-1 K-1 at room temperature (TDTR)
 - Source: `Solid Electrolytes 2021.pdf`, page 2
 - Evidence: “The room-temperature thermal conductivity was measured as 1.4 W m-1 K-1.”
-- Confidence: high — value, unit, method and page are directly traceable.
+- Confidence: medium — value, unit and page are directly traceable; the method comes from adjacent context and relative density is not reported.

@@ -186,7 +186,8 @@ test("bundled PDFs hydrate before entering a real AI request", async ({ page }) 
   await page.route("**/v1/chat/completions", async (route) => {
     const payload = route.request().postDataJSON();
     prompts.push(payload.messages.map((message: { content: string }) => message.content).join("\n"));
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ summary: "公开论文真实分析完成", records: [{ material: "LLZTO", process: "TDTR", property: "热导率", value: 1.4, unit: "W m-1 K-1", conditions: { temperature: "室温" }, sourceDocument: "Solid Electrolytes 2021.pdf", page: 2, evidence: "thermal conductivities are 1.4 W m-1 K-1", confidence: "high" }], missingConditions: [], conflicts: [] }) } }] }) });
+    const firstPage = Number(payload.messages.at(-1).content.match(/\[第\s*(\d+)\s*页\]/)?.[1] ?? 1);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ status: "no_evidence", summary: "已完成真实核查", checked_pages: [firstPage], reason: "本片段未发现可复核记录", records: [] }) } }] }) });
   });
   await page.goto("/");
   await waitForHydration(page);
@@ -195,12 +196,12 @@ test("bundled PDFs hydrate before entering a real AI request", async ({ page }) 
   await settings.getByLabel("API Key").fill("bundled-runtime-key");
   await settings.getByRole("button", { name: "应用配置" }).click();
   await page.getByRole("button", { name: "开始真实分析" }).click();
-  await expect(page.getByText(/真实分析完成：3 篇均有状态，共提取 3 条数据/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/真实分析完成：3 篇均有状态，共提取 0 条数据/)).toBeVisible({ timeout: 20_000 });
   expect(prompts).toHaveLength(3);
   expect(prompts.join("\n")).toContain("Solid Electrolytes 2021.pdf");
   expect(prompts.join("\n")).toContain("Superionic Discovery 2022.pdf");
   expect(prompts.join("\n")).toContain("Lattice Dynamics 2024.pdf");
-  expect(prompts[0]).toContain("1.4 W m -1 K -1");
+  expect(prompts.find((prompt) => prompt.includes("Solid Electrolytes 2021.pdf"))).toContain("1.4 W m -1 K -1");
 });
 
 test("document selection is independent from preview and scopes real analysis", async ({ page }) => {
@@ -227,6 +228,9 @@ test("document selection is independent from preview and scopes real analysis", 
   expect(prompt).toContain("Solid Electrolytes 2021.pdf");
   expect(prompt).not.toContain("Superionic Discovery 2022.pdf");
   expect(prompt).not.toContain("Lattice Dynamics 2024.pdf");
+  await expect(page.getByText("LLZTO", { exact: true }).first()).toBeVisible();
+  await selectors.nth(1).check();
+  await expect(page.getByText("暂无结果，请载入公开论文或完成真实分析")).toBeVisible();
 });
 
 test("document title rename cascades through evidence, export, and project restore", async ({ page }) => {

@@ -8,6 +8,7 @@ const report = {
   generatedAt: "2026-08-05T00:00:00.000Z",
   records: [{
     id: "record-1",
+    materialRaw: "Li7La3Zr2O12",
     material: "LLZO, Ta 掺杂",
     process: "固相烧结",
     property: "离子电导率",
@@ -30,9 +31,13 @@ test("JSON export preserves evidence and provenance", () => {
   const output = buildExport("json", report);
   const parsed = JSON.parse(output.content);
   assert.equal(output.filename, "mattrace-report.json");
-  assert.equal(parsed.records[0].evidence, "The value was 1.2 mS/cm.");
-  assert.equal(parsed.records[0].sourceDocument, "paper-a.pdf");
-  assert.equal(parsed.missingConditions.length, 1);
+  assert.equal(parsed.records[0].evidence_text, "The value was 1.2 mS/cm.");
+  assert.equal(parsed.records[0].source_document, "paper-a.pdf");
+  assert.equal(parsed.records[0].material_name_raw, "Li7La3Zr2O12");
+  assert.equal(parsed.records[0].material_name_normalized, "LLZO, Ta 掺杂");
+  assert.equal(parsed.missing_conditions.length, 1);
+  assert.ok(Array.isArray(parsed.coverage_matrix));
+  assert.ok(Array.isArray(parsed.review_queue));
 });
 
 test("CSV export has a UTF-8 BOM and correctly quotes commas", () => {

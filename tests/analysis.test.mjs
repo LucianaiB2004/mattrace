@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   detectConflicts,
   extractJsonObject,
+  formatMeasurement,
   normalizeAnalysisResult,
 } from "../app/domain/analysis.mjs";
 
@@ -13,7 +14,7 @@ const baseRecord = {
   property: "离子电导率",
   value: 1.2,
   unit: "mS/cm",
-  conditions: { temperature: "25°C", method: "阻抗法" },
+  conditions: { temperature: "25°C", method: "阻抗法", frequency_range: "1 Hz-1 MHz" },
   sourceDocument: "paper-a.pdf",
   page: 12,
   evidence: "The ionic conductivity was 1.2 mS/cm at 25°C.",
@@ -67,6 +68,59 @@ test("normalizeAnalysisResult rejects records without traceable evidence", () =>
   );
 });
 
+test("normalizeAnalysisResult preserves ranges without inventing an exact value", () => {
+  const result = normalizeAnalysisResult({ records: [{
+    ...baseRecord,
+    value: null,
+    valueRaw: "1.0-1.4",
+    valueKind: "range",
+    evidence: "The ionic conductivity ranged from 1.0 to 1.4 mS/cm at 25°C.",
+  }] });
+  assert.equal(result.records[0].value, null);
+  assert.equal(result.records[0].valueRaw, "1.0-1.4");
+  assert.equal(result.records[0].valueKind, "range");
+  assert.equal(result.records[0].normalizedValue, null);
+  assert.equal(formatMeasurement(result.records[0]), "1.0-1.4 mS/cm");
+});
+
+test("normalizeAnalysisResult derives confidence from evidence instead of trusting the model", () => {
+  const result = normalizeAnalysisResult({ records: [{ ...baseRecord, evidence: "LLZO was characterized.", confidence: "high" }] });
+  assert.equal(result.records[0].confidence, "low");
+  assert.equal(result.records[0].reviewRequired, true);
+  assert.match(result.records[0].confidenceReasons.join(" "), /数值与单位/);
+});
+
+test("normalizeAnalysisResult does not treat an unknown unit as normalized", () => {
+  const result = normalizeAnalysisResult({ records: [{ ...baseRecord, value: 7, valueRaw: "7", unit: "arb. unit", evidence: "The response was 7 arb. unit at 25°C." }] });
+  assert.equal(result.records[0].normalizedValue, null);
+  assert.equal(result.records[0].normalizedUnit, null);
+});
+
+test("property-specific missing conditions prevent a high confidence label", () => {
+  const result = normalizeAnalysisResult({ records: [{ ...baseRecord, property: "热导率", conditions: { temperature: "25°C" }, evidence: "热导率为 1.2 mS/cm at 25°C." }] });
+  assert.equal(result.records[0].confidence, "low");
+  assert.match(result.records[0].confidenceReasons.join(" "), /method|orientation|density_or_porosity/);
+});
+
+test("condition status markers remain missing and prevent comparison", () => {
+  const records = normalizeAnalysisResult({ records: [
+    { ...baseRecord, conditions: { temperature: "not_reported", method: "unclear", frequency_range: "not_applicable" } },
+    { ...baseRecord, value: 1.8, sourceDocument: "paper-b.pdf", conditions: { temperature: "not_reported", method: "unclear", frequency_range: "not_applicable" } },
+  ] }).records;
+  assert.equal(records[0].confidence, "low");
+  assert.deepEqual(detectConflicts(records), []);
+});
+
+test("normalizeAnalysisResult preserves raw and normalized material names", () => {
+  const result = normalizeAnalysisResult({ records: [{
+    ...baseRecord,
+    material_name_raw: "Li6.4La3Zr1.4Ta0.6O12",
+    material_name_normalized: "LLZTO",
+  }] });
+  assert.equal(result.records[0].materialRaw, "Li6.4La3Zr1.4Ta0.6O12");
+  assert.equal(result.records[0].material, "LLZTO");
+});
+
 test("detectConflicts links compatible records whose values differ by more than 30 percent", () => {
   const records = normalizeAnalysisResult({
     records: [
@@ -80,4 +134,20 @@ test("detectConflicts links compatible records whose values differ by more than 
   assert.equal(conflicts.length, 1);
   assert.deepEqual(conflicts[0].recordIds, ["record-1", "record-2"]);
   assert.equal(conflicts[0].differencePercent, 50);
+});
+
+test("detectConflicts does not compare records measured under different conditions", () => {
+  const records = normalizeAnalysisResult({ records: [
+    baseRecord,
+    { ...baseRecord, value: 1.8, conditions: { temperature: "80°C", method: "阻抗法" }, sourceDocument: "paper-b.pdf" },
+  ] }).records;
+  assert.deepEqual(detectConflicts(records, 0.3), []);
+});
+
+test("detectConflicts does not compare two records that both omit critical conditions", () => {
+  const records = normalizeAnalysisResult({ records: [
+    { ...baseRecord, conditions: {}, value: 1.2 },
+    { ...baseRecord, conditions: {}, value: 1.8, sourceDocument: "paper-b.pdf" },
+  ] }).records;
+  assert.deepEqual(detectConflicts(records, 0.3), []);
 });

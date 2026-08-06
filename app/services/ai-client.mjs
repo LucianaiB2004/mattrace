@@ -1,5 +1,5 @@
 import { extractJsonObject, normalizeAnalysisResult } from "../domain/analysis.mjs";
-import { buildAnalysisMessages, buildDocumentAnalysisMessages } from "../domain/prompt.mjs";
+import { buildAnalysisMessages, buildDocumentAnalysisMessages, selectEvidenceExcerpts, selectedEvidencePages } from "../domain/prompt.mjs";
 
 function baseV1(gateway) {
   const clean = String(gateway ?? "").trim().replace(/\/+$/, "");
@@ -19,6 +19,10 @@ function headers(config) {
     Authorization: `Bearer ${config.apiKey.trim()}`,
     "Content-Type": "application/json",
   };
+}
+
+function compactEvidence(value) {
+  return String(value ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 async function errorMessage(response) {
@@ -164,10 +168,26 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
   if (!response.ok) throw safeError("分析请求失败", await errorMessage(response), config);
   try {
     const raw = extractJsonObject(await contentFromResponse(response));
-    const checkedPages = Array.isArray(raw.checkedPages)
-      ? raw.checkedPages
-      : (document.pages ?? []).map((page) => page.page);
-    if (raw.status === "no_evidence" || raw.records?.length === 0) {
+    const submittedPages = new Set(selectedEvidencePages(document));
+    const claimedPages = raw.checked_pages ?? raw.checkedPages;
+    const checkedPages = Array.isArray(claimedPages)
+      ? [...new Set(claimedPages.map(Number).filter((page) => submittedPages.has(page)))]
+      : [];
+    const indexedRecords = Array.isArray(raw.records)
+      ? raw.records.map((record, index) => ({ record, index })).filter(({ record }) => submittedPages.has(Number(record?.page)))
+      : [];
+    const indexMap = new Map(indexedRecords.map(({ index }, nextIndex) => [index, nextIndex]));
+    const missingKey = Array.isArray(raw.missing_conditions) ? "missing_conditions" : "missingConditions";
+    const filteredMissing = Array.isArray(raw[missingKey])
+      ? raw[missingKey].flatMap((item) => {
+          const originalIndex = Number(item?.record_index ?? item?.recordIndex);
+          const nextIndex = indexMap.get(originalIndex);
+          if (nextIndex == null) return [];
+          return [{ ...item, record_index: nextIndex, recordIndex: nextIndex }];
+        })
+      : [];
+    const validated = { ...raw, records: indexedRecords.map(({ record }) => record), [missingKey]: filteredMissing };
+    if (raw.status === "no_evidence" || validated.records.length === 0) {
       return {
         status: "no_evidence",
         records: [],
@@ -175,10 +195,23 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
         conflicts: [],
         summary: String(raw.summary ?? ""),
         checkedPages,
-        reason: String(raw.reason ?? "未发现可追溯的定量材料性能证据"),
+        reason: String(raw.reason ?? (raw.records?.length ? "模型返回的证据页不在实际核查范围内" : "未发现可追溯的定量材料性能证据")),
       };
     }
-    return { status: "extracted", checkedPages, reason: "", ...normalizeAnalysisResult(raw) };
+    const normalized = normalizeAnalysisResult(validated);
+    const submittedEvidence = compactEvidence(selectEvidenceExcerpts(document));
+    normalized.records = normalized.records.map((record) => {
+      const quote = compactEvidence(record.evidence);
+      if (quote && submittedEvidence.includes(quote)) return { ...record, evidenceSourceBound: true };
+      return {
+        ...record,
+        evidenceSourceBound: false,
+        confidence: "low",
+        confidenceReasons: [...record.confidenceReasons, "证据原文无法在实际提交的原文片段中定位"],
+        reviewRequired: true,
+      };
+    });
+    return { status: "extracted", checkedPages, reason: "", ...normalized };
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     throw safeError("模型返回格式无效", error?.message || "无法解析", config);

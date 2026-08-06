@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mattrace.local/schemas/material-evidence-output.json",
+  "title": "Material Evidence Extractor Output",
+  "type": "object",
+  "required": ["coverage_matrix", "records", "missing_conditions", "conflicts", "review_queue"],
+  "additionalProperties": false,
+  "properties": {
+    "coverage_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["document_id", "status", "checked_pages", "record_count", "reason"],
+        "properties": {
+          "document_id": { "type": "string" },
+          "status": { "enum": ["extracted", "no_evidence", "failed", "cancelled"] },
+          "checked_pages": { "type": "array" },
+          "record_count": { "type": "integer", "minimum": 0 },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["record_id", "document_id", "material_name_raw", "material_name_normalized", "property_name", "value_raw", "unit_raw", "value_status", "source_document", "page", "evidence_text", "missing_conditions", "confidence", "confidence_reasons", "review_required"],
+        "properties": {
+          "record_id": { "type": "string" },
+          "document_id": { "type": "string" },
+          "material_name_raw": { "type": "string" },
+          "material_name_normalized": { "type": "string" },
+          "property_name": { "type": "string" },
+          "value_raw": { "type": "string" },
+          "unit_raw": { "type": "string" },
+          "value_status": { "enum": ["reported", "converted", "inferred"] },
+          "normalized_value": { "type": ["number", "null"] },
+          "normalized_unit": { "type": ["string", "null"] },
+          "source_document": { "type": "string" },
+          "page": { "type": ["string", "integer"] },
+          "evidence_text": { "type": "string" },
+          "missing_conditions": { "type": "array", "items": { "type": "string" } },
+          "confidence": { "enum": ["high", "medium", "low"] },
+          "confidence_reasons": { "type": "array", "items": { "type": "string" } },
+          "review_required": { "type": "boolean" }
+        }
+      }
+    },
+    "missing_conditions": { "type": "array" },
+    "conflicts": { "type": "array" },
+    "review_queue": { "type": "array" }
+  }
+}

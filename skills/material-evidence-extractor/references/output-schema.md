@@ -19,11 +19,12 @@
 | `evidence_text` | string | 支持本条记录的最短原文片段 |
 | `missing_conditions` | array | 未报告的关键测试条件 |
 | `confidence` | string | `high`、`medium` 或 `low` |
+| `confidence_reasons` | array | 确定性评分的加分、扣分或复核原因 |
 | `review_required` | boolean | 是否需要人工复核 |
 
 ## 条件与溯源字段
 
-按文档实际内容填写，不适用时使用 `null`：
+按文档实际内容填写。规范化数值无法可靠生成时使用 `null`；来源未报告的文本条件使用下方状态枚举：
 
 - `composition`
 - `dopants`
@@ -59,4 +60,5 @@
 3. `evidence-report.md`：按记录列出证据定位、片段和换算轨迹。
 4. `missing-and-conflicts.md`：集中列出缺失条件、冲突及影响。
 5. `review-queue.csv`：所有 `review_required: true` 的记录。
-
+6. `coverage-matrix.csv`：每篇输入文档的明确处理状态与真实检查页。
+7. `comparability-passports.jsonl`：证据质量评分、条件兼容结论和原因。

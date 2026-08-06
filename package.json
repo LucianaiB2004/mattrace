@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "node scripts/sync-skill-workspace.mjs --check && vinext build",
+    "sync:skill": "node scripts/sync-skill-workspace.mjs",
     "build:static": "npm run build && node scripts/static-export.mjs",
     "start": "vinext start",
     "proxy:ai": "node scripts/local-ai-proxy.mjs",

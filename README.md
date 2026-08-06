@@ -20,15 +20,21 @@ MatTrace 是一个面向材料科研的文献数据提取与核验 Agent。它�
 - 可独立使用的 `material-evidence-extractor` Skill
 - GitHub Pages 静态导出和自动部署工作流
 
+## 比赛交付定位
+
+正式参赛交付物是 [`skills/material-evidence-extractor/`](skills/material-evidence-extractor/) 中完整、可复用的 Skill 文件夹。MatTrace Agent 是依据同一 Skill 合同构建的评委演示与复查界面，不用网页替代 Skill 本身。
+
+比赛严格模式接收 3–10 篇论文、专利或 TDS。Agent 工作区为调试和演示允许选择 1–20 篇；不在 3–10 篇范围内的运行不作为比赛标准结果。Skill 额外提供机器可读输入/输出 Schema、失败案例合同、七类交付物构建脚本和 uplift 客观评分器。
+
 ## 隐私模型
 
-API Key 只保存在当前 React 页面内存中，刷新即清除。它不会写入：
+用户应用模型配置后，API Key 保存在当前浏览器的 `localStorage`，因此同一浏览器刷新后无需重复输入。它不会写入：
 
 - Git 仓库或构建产物
-- localStorage、sessionStorage 或 IndexedDB
+- 项目快照或 IndexedDB
 - URL、日志、导出报告或项目快照
 
-原始文件在浏览器本地解析。只有点击“开始真实分析”后，文档名、页码和解析后的文本才会发送到用户配置的 API 网关。保存项目是显式操作，保存内容不包含 API Key。
+原始文件在浏览器本地解析。只有点击“开始真实分析”后，文档名、页码和解析后的文本才会发送到用户配置的 API 网关。清除 Key 会删除该浏览器中的凭证；请勿在共享或不可信设备上启用。Key 不进入 Skill、导出报告、GitHub 或项目快照。
 
 ## 支持的文档
 
@@ -39,7 +45,16 @@ API Key 只保存在当前 React 页面内存中，刷新即清除。它不会�
 | TXT | 浏览器 UTF-8 解码 | 空文件会被拒绝 |
 | Markdown | 浏览器 UTF-8 解码 | 作为纯文本证据发送 |
 
-真实批次要求 3–10 篇，每个文件不超过 50 MB。
+比赛严格批次要求 3–10 篇；Agent 演示工作区允许 1–20 篇。每个文件不超过 50 MB。
+
+## 评审模型兼容
+
+- 首选模型：Qwen3.8-Max（项目默认标识 `qwen3.8-max`）。
+- 多模态备用：Qwen3-vl-Plus，适用于表格图片、图注或扫描页面已经过 OCR/视觉转写的输入。
+- 纯文本备用：GLM 5.2，必须遵守同一 JSON Schema，不降低证据和页码要求。
+- 图像生成备用：Wan2.7-Image-Pro 不参与科学数据抽取，只能制作演示视觉，生成内容不得作为材料证据。
+
+Skill 不依赖某个供应商专有工具调用；各模型均以相同输入/输出 Schema 和确定性后处理接受验证。模型返回截断、无效 JSON 或缺少文档状态时，该文档进入失败/重试流程，不能静默省略。
 
 ## 本地运行
 
@@ -73,6 +88,14 @@ npm run test:e2e:static
 - `npm run test:e2e`：开发服务完整浏览器交互验收
 - `npm run test:e2e:static`：生成静态 HTML，并在纯静态服务器上重新执行完整浏览器验收
 
+Skill 的 uplift 评测协议位于 [`references/evaluation-protocol.md`](skills/material-evidence-extractor/references/evaluation-protocol.md)。裸模型和挂 Skill 模型使用同一材料集各运行三次，客观字段评分分别取中位数，再计算 `uplift = Skill 中位数 - baseline 中位数`。仓库不预填或虚构实测 uplift；发布分数必须保留三次原始输出、模型参数和输入文档哈希。
+
+仅验证独立 Skill 文件夹及最小复现实验：
+
+```bash
+node skills/material-evidence-extractor/scripts/verify-skill.mjs
+```
+
 单独生成 GitHub Pages 产物：
 
 ```bash
@@ -100,3 +123,7 @@ npm run build:static
 ## 安全提醒
 
 不要把真实 API Key 提交到 Git。若 Key 曾出现在聊天、截图或公开日志中，应立即在服务提供方撤销并重新生成。
+
+## 开源协议
+
+本项目采用 [MIT License](LICENSE)。允许使用、修改、分发和再许可，但需保留版权与许可声明。
