@@ -105,6 +105,52 @@ test("local text analysis remembers the provider but keeps the key out of projec
   expect(errors).toEqual([]);
 });
 
+test("Agent Plan preset persists and analyzes through the Responses API", async ({ page }) => {
+  const requests: Array<Record<string, unknown>> = [];
+  await page.route("**/ark-plan/responses", async (route) => {
+    const payload = route.request().postDataJSON();
+    requests.push(payload);
+    if (!payload.stream) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ output_text: "OK" }) });
+      return;
+    }
+    const userText = payload.input.at(-1).content[0].text;
+    const firstPage = Number(userText.match(/\[第\s*(\d+)\s*页\]/)?.[1] ?? 1);
+    const output = JSON.stringify({ status: "no_evidence", checked_pages: [firstPage], summary: "Agent Plan 核查完成", reason: "当前片段没有可复核定量记录", records: [] });
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+      body: `data: ${JSON.stringify({ type: "response.output_text.delta", delta: output })}\n\ndata: ${JSON.stringify({ type: "response.completed" })}\n\n`,
+    });
+  });
+
+  await page.goto("/");
+  await waitForHydration(page);
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  let settings = page.getByRole("dialog", { name: "模型配置" });
+  await settings.getByLabel("供应商预设").selectOption("volcengine-agent-plan");
+  await expect(settings.getByLabel("接口协议")).toHaveValue("openai-responses");
+  await expect(settings.getByLabel("API 网关")).toHaveValue("https://ark.cn-beijing.volces.com/api/plan/v3");
+  await expect(settings.getByLabel("模型名称")).toHaveValue("doubao-seed-evolving");
+  await settings.getByLabel("API Key").fill("agent-plan-runtime-key");
+  await settings.getByRole("button", { name: "测试连接" }).click();
+  await expect(settings.getByText("连接成功", { exact: true })).toBeVisible();
+  await settings.getByRole("button", { name: "应用配置" }).click();
+
+  await page.reload();
+  await waitForHydration(page);
+  await expect(page.getByRole("button", { name: "打开模型配置" })).toContainText("doubao-seed-evolving");
+  await page.getByRole("button", { name: "开始真实分析" }).click();
+  await expect(page.getByText(/真实分析完成：3 篇均有状态/)).toBeVisible({ timeout: 20_000 });
+  expect(requests).toHaveLength(4);
+  expect(requests.slice(1).every((request) => request.model === "doubao-seed-evolving" && Array.isArray(request.input))).toBe(true);
+
+  await page.getByRole("button", { name: "打开模型配置" }).click();
+  settings = page.getByRole("dialog", { name: "模型配置" });
+  await expect(settings.getByLabel("供应商预设")).toHaveValue("volcengine-agent-plan");
+  await expect(settings.getByLabel("API Key")).toHaveValue("agent-plan-runtime-key");
+});
+
 test("mobile layout stays within the viewport and keyboard Escape closes dialogs", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");

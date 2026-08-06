@@ -60,6 +60,38 @@ test("provider test falls back to a minimal chat request when models is unsuppor
   assert.equal(JSON.parse(requests[1].init.body).max_tokens, 8);
 });
 
+test("Responses provider test reserves enough output for reasoning models", async () => {
+  let request;
+  const result = await testProvider({
+    gateway: "https://ark.cn-beijing.volces.com/api/plan/v3",
+    model: "doubao-seed-evolving",
+    apiKey: "runtime-only-key",
+    protocol: "openai-responses",
+  }, async (url, init) => {
+    request = { url, init };
+    return response(200, { output_text: "OK" });
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(request.url, "https://ark.cn-beijing.volces.com/api/plan/v3/responses");
+  assert.equal(JSON.parse(request.init.body).max_output_tokens, 128);
+});
+
+test("Responses document analysis reserves output beyond the reasoning budget", async () => {
+  let requestBody;
+  await analyzeDocument({
+    gateway: "https://ark.cn-beijing.volces.com/api/plan/v3",
+    model: "doubao-seed-evolving",
+    apiKey: "runtime-only-key",
+    protocol: "openai-responses",
+  }, documents[0], async (_url, init) => {
+    requestBody = JSON.parse(init.body);
+    return response(200, { output_text: JSON.stringify({ status: "no_evidence", checkedPages: [1], reason: "No quantitative evidence." }) });
+  });
+
+  assert.equal(requestBody.max_output_tokens, 16384);
+});
+
 test("analysis posts document evidence and returns a normalized report", async () => {
   let requestBody;
   const stages = [];

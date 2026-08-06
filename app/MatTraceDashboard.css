@@ -1076,7 +1076,8 @@ tbody tr:last-child td {
   font-weight: 700;
 }
 
-.settings-modal input {
+.settings-modal input,
+.settings-modal select {
   width: 100%;
   margin-top: 6px;
   padding: 11px 12px;
@@ -1087,7 +1088,8 @@ tbody tr:last-child td {
   outline: none;
 }
 
-.settings-modal input:focus {
+.settings-modal input:focus,
+.settings-modal select:focus {
   border-color: #8c76ef;
   box-shadow: 0 0 0 3px rgba(111, 91, 246, 0.1);
 }

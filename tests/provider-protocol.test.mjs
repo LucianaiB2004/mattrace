@@ -39,6 +39,23 @@ test("Responses SSE merges output text deltas", async () => {
   assert.equal(await responseText("openai-responses", response), "hello");
 });
 
+test("Responses SSE prefers complete aggregate output when provider events are malformed", async () => {
+  const response = new Response([
+    `data: ${JSON.stringify({ type: "response.output_text.delta", delta: "partial" })}\n\n`,
+    "data: {provider-specific-invalid-event}\n\n",
+    `data: ${JSON.stringify({ type: "response.completed", response: { output_text: "complete" } })}\n\n`,
+  ].join(""), { headers: { "content-type": "text/event-stream" } });
+  assert.equal(await responseText("openai-responses", response), "complete");
+});
+
+test("Responses SSE falls back to aggregate output in the completed event", async () => {
+  const response = new Response(`data: ${JSON.stringify({
+    type: "response.completed",
+    response: { output: [{ content: [{ type: "output_text", text: "complete" }] }] },
+  })}\n\n`, { headers: { "content-type": "text/event-stream" } });
+  assert.equal(await responseText("openai-responses", response), "complete");
+});
+
 test("Responses without output text fail explicitly", async () => {
   await assert.rejects(() => responseText("openai-responses", new Response("{}", { headers: { "content-type": "application/json" } })), /输出文本/);
 });

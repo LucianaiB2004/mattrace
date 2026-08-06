@@ -9,8 +9,8 @@ MatTrace 是一个面向材料科研的文献数据提取与核验 Agent。它�
 - 浏览器本地解析 PDF、DOCX、TXT、Markdown
 - 文件选择与拖拽上传、格式/大小/重复/数量校验、预览、移除和清空
 - 无需 API Key 的完整示例运行
-- 通过 OpenAI-compatible `chat/completions` 接口执行真实分析
-- 默认网关 `https://ai.chipcloud.cc`，默认模型 `qwen3.8-max`
+- 通过 OpenAI-compatible Chat Completions 或 Responses API 执行真实分析
+- 内置 ChipCloud `qwen3.8-max` 与火山方舟 Agent Plan `doubao-seed-evolving` 预设
 - 六阶段 Agent 进度、取消、错误提示与保留文档重试
 - 单位规范化、缺失条件关联和差异超过 30% 的冲突检测
 - 数据表、证据原文、来源文档和页码联动查看
@@ -56,6 +56,18 @@ MatTrace 是一个面向材料科研的文献数据提取与核验 Agent。它�
 
 Skill 不依赖某个供应商专有工具调用；各模型均以相同输入/输出 Schema 和确定性后处理接受验证。模型返回截断、无效 JSON 或缺少文档状态时，该文档进入失败/重试流程，不能静默省略。
 
+## 模型供应商
+
+“模型配置”提供以下预设：
+
+| 供应商 | 协议 | 网关 | 模型 |
+| --- | --- | --- | --- |
+| ChipCloud | OpenAI Chat Completions | `https://ai.chipcloud.cc` | `qwen3.8-max` |
+| 火山方舟 Agent Plan | OpenAI Responses API | `https://ark.cn-beijing.volces.com/api/plan/v3` | `doubao-seed-evolving` |
+| 自定义 | OpenAI Chat Completions 或 Responses API | 用户填写 | 用户填写 |
+
+火山方舟预设请求 `https://ark.cn-beijing.volces.com/api/plan/v3/responses`。旧版浏览器配置没有协议字段时会自动迁移为 Chat Completions。切换供应商不会把凭证写入仓库，但会清空旧分析结果，避免将前一模型的输出误认为当前模型结果。
+
 ## 本地运行
 
 要求 Node.js `>=22.13.0`。
@@ -71,7 +83,7 @@ npm run dev
 npm run proxy:ai
 ```
 
-页面保持填写真实网关 `https://ai.chipcloud.cc`；在 localhost 上，MatTrace 会自动把该网关请求路由到 `http://127.0.0.1:8788`。代理不记录 API Key 与文献正文，仅用于本机演示；GitHub Pages 仍要求所选网关原生支持浏览器 CORS。
+页面始终保存并显示真实网关。在 localhost 上，MatTrace 将 ChipCloud 映射到固定的 `/chipcloud` 本地路由，将火山方舟 Agent Plan 映射到固定的 `/ark-plan` 本地路由。代理只允许这两个上游及声明的模型端点，不接受任意 URL，也不记录 API Key、文献正文或模型响应。GitHub Pages 没有本地代理，所选网关必须原生支持浏览器 CORS，或由部署者提供同等安全的固定上游代理。
 
 打开 `http://localhost:3000`。无需 Key 可直接点击“使用示例运行”；真实分析需在“模型配置”中临时输入自己的 Key。
 

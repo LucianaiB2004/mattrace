@@ -58,18 +58,29 @@ export async function responseText(protocol, response) {
   }
 
   const chunks = [];
-  for (const line of (await response.text()).split(/\r?\n/)) {
-    if (!line.startsWith("data:")) continue;
-    const data = line.slice(5).trim();
+  let completedText = "";
+  let invalidEvents = 0;
+  const frames = (await response.text()).split(/\r?\n\r?\n/);
+  for (const frame of frames) {
+    const data = frame.split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart())
+      .join("\n")
+      .trim();
     if (!data || data === "[DONE]") continue;
     let event;
     try { event = JSON.parse(data); }
-    catch { throw new Error("模型流式响应包含无效事件"); }
+    catch { invalidEvents += 1; continue; }
     const content = protocol === "openai-responses"
       ? event?.type === "response.output_text.delta" ? event.delta : undefined
       : event?.choices?.[0]?.delta?.content ?? event?.choices?.[0]?.message?.content;
     if (typeof content === "string") chunks.push(content);
+    if (protocol === "openai-responses" && event?.type === "response.completed") {
+      try { completedText = responsesText(event.response); } catch { /* A completed event may omit the aggregate output. */ }
+    }
   }
+  if (completedText) return completedText;
+  if (!chunks.length && invalidEvents) throw new Error("模型流式响应包含无效事件且缺少输出文本");
   if (!chunks.length) throw new Error(protocol === "openai-responses" ? "模型响应缺少输出文本" : "模型流式响应缺少内容");
   return chunks.join("");
 }

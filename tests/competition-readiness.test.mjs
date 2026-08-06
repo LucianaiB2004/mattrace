@@ -11,6 +11,9 @@ test("repository documents competition models, local credential storage, and MIT
   assert.match(readme, /Qwen3-vl-Plus/);
   assert.match(readme, /GLM 5\.2/);
   assert.match(readme, /Wan2\.7-Image-Pro/);
+  assert.match(readme, /doubao-seed-evolving/);
+  assert.match(readme, /api\/plan\/v3\/responses/);
+  assert.match(readme, /OpenAI Responses API/);
   assert.match(readme, /localStorage/);
   assert.match(readme, /MIT License/);
   assert.match(license, /MIT License/);

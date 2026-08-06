@@ -47,7 +47,7 @@ export async function testProvider(config, fetchImpl = fetch, signal) {
   if (resolved.protocol === "openai-responses") {
     const response = await fetchImpl(requestUrl(resolved), {
       method: "POST", headers: requestHeaders, signal,
-      body: JSON.stringify(requestBody(resolved, [{ role: "user", content: "Reply OK" }], { maxTokens: 16 })),
+      body: JSON.stringify(requestBody(resolved, [{ role: "user", content: "Reply only with OK." }], { maxTokens: 128 })),
     });
     if (!response.ok) throw safeError("连接失败", await errorMessage(response), config);
     await responseText(resolved.protocol, response);
@@ -118,7 +118,11 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
       method: "POST",
       headers: headers(config),
       signal,
-      body: JSON.stringify(requestBody(resolved, buildDocumentAnalysisMessages(document), { maxTokens: 4096, stream: true, json: true })),
+      body: JSON.stringify(requestBody(resolved, buildDocumentAnalysisMessages(document), {
+        maxTokens: resolved.protocol === "openai-responses" ? 16384 : 4096,
+        stream: true,
+        json: true,
+      })),
     });
   } catch (error) {
     if (error?.name === "AbortError") throw error;

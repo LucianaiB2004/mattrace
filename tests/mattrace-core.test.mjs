@@ -10,6 +10,8 @@ import {
 
 test("uses the configured gateway and qwen model without a bundled key", () => {
   assert.deepEqual(DEFAULT_PROVIDER, {
+    provider: "chipcloud",
+    protocol: "openai-chat",
     gateway: "https://ai.chipcloud.cc",
     model: "qwen3.8-max",
     apiKey: "",
@@ -51,4 +53,3 @@ test("serializes records as JSON, CSV, and Markdown", () => {
 test("rejects an unsupported export format", () => {
   assert.throws(() => serializeExport("xml", []), /Unsupported export format/);
 });
-
