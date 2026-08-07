@@ -4,7 +4,7 @@ import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-import { median, scoreRun, summarizeUplift } from "../skills/material-evidence-extractor/scripts/score-uplift.mjs";
+import { median, scoreRun, summarizeUplift } from "../../skills/material-evidence-extractor/scripts/score-uplift.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,7 +36,7 @@ test("uplift is the difference between three-run medians", () => {
 });
 
 test("uplift scorer provides a reproducible command-line summary", async () => {
-  const script = fileURLToPath(new URL("../skills/material-evidence-extractor/scripts/score-uplift.mjs", import.meta.url));
+  const script = fileURLToPath(new URL("../../skills/material-evidence-extractor/scripts/score-uplift.mjs", import.meta.url));
   const { stdout } = await execFileAsync(process.execPath, [script, "--baseline", "0.2,0.3,0.9", "--skill", "0.7,0.8,0.75"]);
   assert.deepEqual(JSON.parse(stdout), { baseline_median: 0.3, skill_median: 0.75, uplift: 0.45, runs_per_arm: 3 });
 });

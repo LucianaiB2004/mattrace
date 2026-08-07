@@ -20,7 +20,7 @@ test("repository documents competition models, local credential storage, and MIT
 });
 
 test("Skill ships machine-readable schemas", async () => {
-  const root = new URL("../skills/material-evidence-extractor/references/", import.meta.url);
+  const root = new URL("../../skills/material-evidence-extractor/references/", import.meta.url);
   const [input, output] = await Promise.all([
     readFile(new URL("input-schema.json", root), "utf8"),
     readFile(new URL("output-schema.json", root), "utf8"),

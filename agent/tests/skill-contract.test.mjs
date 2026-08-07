@@ -5,11 +5,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { buildDeliverables } from "../skills/material-evidence-extractor/scripts/build-deliverables.mjs";
-import { extractEvidence } from "../skills/material-evidence-extractor/scripts/extract-evidence.mjs";
-import { normalizeRecord } from "../skills/material-evidence-extractor/scripts/normalize-record.mjs";
+import { buildDeliverables } from "../../skills/material-evidence-extractor/scripts/build-deliverables.mjs";
+import { extractEvidence } from "../../skills/material-evidence-extractor/scripts/extract-evidence.mjs";
+import { normalizeRecord } from "../../skills/material-evidence-extractor/scripts/normalize-record.mjs";
 
-const skillRoot = new URL("../skills/material-evidence-extractor/", import.meta.url);
+const skillRoot = new URL("../../skills/material-evidence-extractor/", import.meta.url);
 const execFileAsync = promisify(execFile);
 
 test("canonical snake_case records remain traceable through normalization", async () => {

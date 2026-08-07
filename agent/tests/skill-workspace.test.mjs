@@ -67,7 +67,7 @@ test("complete ZIP contains the canonical root folder and every file", async () 
 });
 
 test("browser Skill workspace mirrors the canonical repository files byte for byte", async () => {
-  const root = new URL("../skills/material-evidence-extractor/", import.meta.url);
+  const root = new URL("../../skills/material-evidence-extractor/", import.meta.url);
   for (const file of SKILL_FILES) {
     const canonical = await readFile(new URL(file.path, root), "utf8");
     assert.equal(file.content.replaceAll("\r\n", "\n"), canonical.replaceAll("\r\n", "\n"), file.path);

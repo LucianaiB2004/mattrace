@@ -1,7 +1,7 @@
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const root = new URL("../skills/material-evidence-extractor/", import.meta.url);
+const root = new URL("../../skills/material-evidence-extractor/", import.meta.url);
 const target = new URL("../app/domain/skill-files.generated.mjs", import.meta.url);
 const checkOnly = process.argv.includes("--check");
 

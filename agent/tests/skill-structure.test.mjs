@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-const skillRoot = new URL("../skills/", import.meta.url);
+const skillRoot = new URL("../../skills/", import.meta.url);
 
 test("contains one valid material evidence skill", async () => {
   const entries = await readdir(skillRoot, { withFileTypes: true });
