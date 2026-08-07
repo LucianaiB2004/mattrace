@@ -1,26 +1,28 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import DetailsDrawer from "./components/DetailsDrawer";
 import SettingsDialog from "./components/SettingsDialog";
 import SkillManager from "./components/SkillManager";
 import PdfReader from "./components/PdfReader";
 import DocumentTextViewer from "./components/DocumentTextViewer";
 import ToastRegion, { type Toast } from "./components/ToastRegion";
-import { EXAMPLE_DOCUMENTS, createExampleReport } from "./domain/example-data.mjs";
+import { EXAMPLE_DOCUMENTS } from "./domain/example-data.mjs";
 import { buildAuditExport, buildExport } from "./domain/export-report.mjs";
 import { buildEvidenceAudit } from "./domain/evidence-audit.mjs";
 import { competitionMode } from "./domain/competition-mode.mjs";
 import { renameDocument } from "./domain/document-workspace.mjs";
 import { loadProvider, saveProvider } from "./domain/provider-storage.mjs";
+import { createProjectSnapshot } from "./domain/project-snapshot.mjs";
+import { createProjectStore } from "./services/project-store.mjs";
 import { createWorkflowState, transitionWorkflow } from "./domain/workflow.mjs";
 import { analyzeDocument } from "./services/ai-client.mjs";
 import { analyzeDocumentBatch } from "./services/batch-analysis.mjs";
 import { parseDocument } from "./services/document-parser.mjs";
 import { loadLiteraturePages } from "./services/literature-loader.mjs";
 import { validateFiles } from "./services/file-validation.mjs";
-import { DEFAULT_PROVIDER } from "./lib/mattrace-core.mjs";
+import { DEFAULT_PROVIDER } from "./domain/provider-presets.mjs";
 import "./MatTraceDashboard.css";
 
 type ParsedDocument = {
@@ -29,14 +31,15 @@ type ParsedDocument = {
   status: string; example?: boolean; previewUrl?: string; textUrl?: string;
 };
 type RecordRow = {
-  id: string; material: string; process: string; property: string; value: number;
-  unit: string; normalizedValue: number; normalizedUnit: string;
+  id: string; material: string; process: string; property: string; value: number | null;
+  valueRaw: string; valueKind: "exact" | "range" | "limit" | "approx";
+  unit: string; normalizedValue: number | null; normalizedUnit: string | null;
   conditions: Record<string, string>; conditionText: string; sourceDocument: string;
   page: number | string; evidence: string; confidence: "high" | "medium" | "low";
 };
 type AlertItem = { id: string; recordId?: string; recordIds?: string[]; message: string; field?: string; differencePercent?: number | null };
 type CoverageRow = { documentId: string; documentName: string; status: string; pageCount: number; checkedPages: number[]; recordCount: number; reason: string };
-type Passport = { recordId: string; material: string; property: string; sourceDocument: string; comparable: boolean; scores: { total: number }; reasons: string[] };
+type Passport = { recordId: string; material: string; property: string; sourceDocument: string; comparable: boolean; scores: { evidence: number; completeness: number; conditions: number; comparability: number; total: number }; reasons: string[] };
 type Report = { records: RecordRow[]; missingConditions: AlertItem[]; conflicts: AlertItem[]; summary: string; generatedAt: string; coverageMatrix?: CoverageRow[]; comparabilityPassports?: Passport[] };
 type Workflow = { phase: string; mode: string | null; activeStage: number; documentCount: number; reportId: string | null; error: string | null };
 type Drawer = "skill" | "documents" | "records" | "evidence" | "missing" | "conflicts" | "export" | "privacy" | null;
@@ -57,6 +60,10 @@ function bytes(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function valueText(record: RecordRow) {
+  return `${record.valueRaw ?? record.value ?? "未说明"} ${record.unit ?? ""}`.trim();
+}
+
 function download(output: { filename: string; content: string; mime: string }) {
   const href = URL.createObjectURL(new Blob([output.content], { type: `${output.mime};charset=utf-8` }));
   const anchor = document.createElement("a");
@@ -66,22 +73,18 @@ function download(output: { filename: string; content: string; mime: string }) {
   URL.revokeObjectURL(href);
 }
 
-function delay(milliseconds: number) { return new Promise((resolve) => window.setTimeout(resolve, milliseconds)); }
-
 export default function MatTraceDashboard() {
-  const initialProvider = useMemo(() => typeof window === "undefined" ? { ...DEFAULT_PROVIDER, apiKey: "" } : loadProvider(window.localStorage, { ...DEFAULT_PROVIDER, apiKey: "" }), []);
-  const initialReport = useMemo(() => createExampleReport() as Report, []);
   const [activeNav, setActiveNav] = useState("首页");
-  const [documents, setDocuments] = useState<ParsedDocument[]>(() => [...EXAMPLE_DOCUMENTS] as ParsedDocument[]);
-  const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(() => new Set(EXAMPLE_DOCUMENTS.map((document) => document.id)));
-  const [report, setReport] = useState<Report | null>(initialReport);
-  const [selectedRecordId, setSelectedRecordId] = useState(initialReport.records[0].id);
-  const [workflow, setWorkflow] = useState<Workflow>(() => ({ ...createWorkflowState(), phase: "success", mode: "example", activeStage: 5, documentCount: 3, reportId: "example-report" }));
-  const [gateway, setGateway] = useState(initialProvider.gateway);
-  const [model, setModel] = useState(initialProvider.model);
-  const [apiKey, setApiKey] = useState(initialProvider.apiKey);
-  const [provider, setProvider] = useState(initialProvider.provider);
-  const [protocol, setProtocol] = useState(initialProvider.protocol);
+  const [documents, setDocuments] = useState<ParsedDocument[]>([]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(() => new Set());
+  const [report, setReport] = useState<Report | null>(null);
+  const [selectedRecordId, setSelectedRecordId] = useState("");
+  const [workflow, setWorkflow] = useState<Workflow>(() => createWorkflowState());
+  const [gateway, setGateway] = useState(DEFAULT_PROVIDER.gateway);
+  const [model, setModel] = useState(DEFAULT_PROVIDER.model);
+  const [apiKey, setApiKey] = useState(DEFAULT_PROVIDER.apiKey);
+  const [provider, setProvider] = useState(DEFAULT_PROVIDER.provider);
+  const [protocol, setProtocol] = useState(DEFAULT_PROVIDER.protocol);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [documentPreview, setDocumentPreview] = useState<ParsedDocument | null>(null);
@@ -90,13 +93,43 @@ export default function MatTraceDashboard() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState({ completed: 0, total: 0, current: "" });
   const [isDragging, setIsDragging] = useState(false);
+  const [hasSavedProject, setHasSavedProject] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const previewUrlsRef = useRef(new Set<string>());
   const toastIdRef = useRef(0);
+  const projectStoreRef = useRef<ReturnType<typeof createProjectStore> | null>(null);
+
+  function projectStore() {
+    if (!projectStoreRef.current) projectStoreRef.current = createProjectStore();
+    return projectStoreRef.current;
+  }
 
   useEffect(() => () => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+
+  // Load the saved provider after mount so the first client render matches SSR.
+  // Synchronous setState here is intentional: it hydrates browser-only storage.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const saved = loadProvider(window.localStorage, { ...DEFAULT_PROVIDER, apiKey: "" });
+    setGateway(saved.gateway);
+    setModel(saved.model);
+    setApiKey(saved.apiKey);
+    setProvider(saved.provider);
+    setProtocol(saved.protocol);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Surface whether a saved project exists, without auto-restoring it: the app
+  // must start empty. The user restores explicitly via "恢复存档".
+  useEffect(() => {
+    let cancelled = false;
+    projectStore().loadProject()
+      .then((snapshot) => { if (!cancelled) setHasSavedProject(Boolean(snapshot)); })
+      .catch(() => { /* storage unavailable — keep the button disabled */ });
+    return () => { cancelled = true; };
   }, []);
 
   const records = report?.records ?? [];
@@ -135,7 +168,7 @@ export default function MatTraceDashboard() {
     if (isBusy) return;
     const existing = documents.filter((item) => !item.example);
     const validation = validateFiles(incoming, existing);
-    validation.rejected.forEach((item: { message: string; file: File }) => notify(`${item.file.name}：${item.message}`, "error"));
+    validation.rejected.forEach((item: { message: string | null; file: File }) => notify(`${item.file.name}：${item.message ?? "文件被拒绝"}`, "error"));
     if (!validation.accepted.length) return;
     setWorkflow((state) => transitionWorkflow(state, { type: "PARSE_STARTED" }));
     const parsed: ParsedDocument[] = [];
@@ -172,10 +205,16 @@ export default function MatTraceDashboard() {
 
   async function hydrateDocument(document: ParsedDocument) {
     if (!document.textUrl || document.pages.length === document.pageCount) return document;
-    const hydrated = await loadLiteraturePages(document) as ParsedDocument;
-    setDocuments((current) => current.map((item) => item.id === hydrated.id ? hydrated : item));
-    setDocumentPreview((current) => current?.id === hydrated.id ? hydrated : current);
-    return hydrated;
+    try {
+      const hydrated = await loadLiteraturePages(document) as ParsedDocument;
+      setDocuments((current) => current.map((item) => item.id === hydrated.id ? hydrated : item));
+      setDocumentPreview((current) => current?.id === hydrated.id ? hydrated : current);
+      return hydrated;
+    } catch {
+      // Full text could not be fetched; analyze the already-parsed pages rather than failing the whole document.
+      notify(`${document.name} 全文加载失败，将使用已解析的 ${document.pages.length} 页继续分析`, "info");
+      return document;
+    }
   }
 
   async function openDocument(document: ParsedDocument) {
@@ -209,21 +248,15 @@ export default function MatTraceDashboard() {
     notify(`文档已重命名为 ${renamed?.name ?? requestedName}`, "success");
   }
 
-  async function runExample() {
+  function loadExampleDocuments() {
     if (isBusy) return;
-    setDocuments([...EXAMPLE_DOCUMENTS] as ParsedDocument[]);
-    setSelectedDocumentIds(new Set(EXAMPLE_DOCUMENTS.map((document) => document.id)));
+    const next = [...EXAMPLE_DOCUMENTS] as ParsedDocument[];
+    setDocuments(next);
+    setSelectedDocumentIds(new Set(next.map((document) => document.id)));
     setReport(null);
-    setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_STARTED", mode: "example" }));
-    for (const stage of [0, 1, 2, 3, 4, 5]) {
-      setWorkflow((state) => transitionWorkflow(state, { type: "STAGE_CHANGED", stage }));
-      await delay(260);
-    }
-    const next = createExampleReport() as Report;
-    setReport(next);
-    setSelectedRecordId(next.records[0].id);
-    setWorkflow((state) => transitionWorkflow(state, { type: "ANALYSIS_SUCCEEDED", reportId: "example-report" }));
-    notify("公开论文分析完成，可逐条核对 PDF 与证据", "success");
+    setSelectedRecordId("");
+    setWorkflow((state) => transitionWorkflow(state, { type: "PARSE_SUCCEEDED", documentCount: next.length }));
+    notify("已载入 3 篇公开论文，请配置模型后开始真实分析", "info");
   }
 
   async function runRealAnalysis() {
@@ -274,6 +307,51 @@ export default function MatTraceDashboard() {
 
   function cancelAnalysis() { abortRef.current?.abort(); }
 
+  async function saveProject() {
+    try {
+      const snapshot = createProjectSnapshot({ documents, report, gateway, model, protocol, selectedRecordId });
+      await projectStore().saveProject(snapshot);
+      setHasSavedProject(true);
+      notify(`项目已保存（${documents.length} 篇文档），可随时点击“恢复存档”载入`, "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "项目保存失败", "error");
+    }
+  }
+
+  async function restoreProject() {
+    if (isBusy) return;
+    try {
+      const snapshot = await projectStore().loadProject();
+      if (!snapshot) { notify("浏览器中没有已保存的项目", "info"); return; }
+      if (snapshot.provider) {
+        setGateway(snapshot.provider.gateway ?? gateway);
+        setModel(snapshot.provider.model ?? model);
+        setProtocol(snapshot.provider.protocol ?? protocol);
+      }
+      setDocuments(snapshot.documents ?? []);
+      setSelectedDocumentIds(new Set((snapshot.documents ?? []).map((document: ParsedDocument) => document.id)));
+      setReport(snapshot.report ?? null);
+      setSelectedRecordId(snapshot.selectedRecordId ?? snapshot.report?.records?.[0]?.id ?? "");
+      setWorkflow((state) => transitionWorkflow(state, {
+        type: snapshot.report ? "ANALYSIS_SUCCEEDED" : "PARSE_SUCCEEDED",
+        ...(snapshot.report ? { reportId: `report-restored` } : { documentCount: snapshot.documents?.length ?? 0 }),
+      }));
+      notify(`已恢复存档（${snapshot.documents?.length ?? 0} 篇文档）`, "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "项目恢复失败", "error");
+    }
+  }
+
+  async function deleteProject() {
+    try {
+      await projectStore().deleteProject();
+      setHasSavedProject(false);
+      notify("已删除浏览器中保存的项目", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "项目删除失败", "error");
+    }
+  }
+
   function openExport(format: "json" | "csv" | "markdown") { setExportFormat(format); setDrawer("export"); }
   async function copyExport() {
     if (!exportOutput) return;
@@ -301,12 +379,12 @@ export default function MatTraceDashboard() {
       </aside>
 
       <section className="workspace">
-        <header className="topbar"><div><p className="eyebrow">MATERIALS INTELLIGENCE WORKSPACE</p><h1>Hi, 研究者 <span aria-hidden="true">👋</span></h1><p>让每一条材料数据都有出处、有条件、可复查。</p></div><div className="top-actions"><button className="model-button" onClick={() => setSettingsOpen(true)} type="button" aria-label="打开模型配置" title={gateway}><span className="status-dot" /><span><small>模型配置</small>{model}</span><b>⌄</b></button></div></header>
+        <header className="topbar"><div><p className="eyebrow">MATERIALS INTELLIGENCE WORKSPACE</p><h1>Hi, 研究者 <span aria-hidden="true">👋</span></h1><p>让每一条材料数据都有出处、有条件、可复查。</p></div><div className="top-actions"><button className="project-action" type="button" onClick={() => void saveProject()} title="把当前文档与分析结果保存到本浏览器，可稍后恢复">保存项目</button>{hasSavedProject && <button className="project-action" type="button" disabled={isBusy} onClick={() => void restoreProject()} title="载入本浏览器中保存的文档与分析结果">恢复存档</button>}<button className="project-action" type="button" onClick={() => void deleteProject()} title="删除本浏览器中保存的项目">清除存档</button><button className="model-button" onClick={() => setSettingsOpen(true)} type="button" aria-label="打开模型配置" title={gateway}><span className="status-dot" /><span><small>模型配置</small>{model}</span><b>⌄</b></button></div></header>
 
         <div className="content-grid"><section className="main-column">
           <article className="card upload-card" id="documents" aria-labelledby="upload-title">
-            <div className="section-heading"><div><h2 id="upload-title">文档工作区 <span>（1–20 篇）</span></h2><p>PDF、DOCX、TXT、Markdown 均在浏览器本地解析</p></div><div className="run-actions"><button className="secondary-run" type="button" disabled={isBusy} onClick={runExample}>载入公开论文</button>{workflow.phase === "analyzing" ? <button className="run-button danger" type="button" onClick={cancelAnalysis}>取消分析</button> : <button className="run-button" type="button" disabled={isBusy} onClick={runRealAnalysis}>开始真实分析</button>}</div></div>
-            <div className="mode-banner"><span className={workflow.mode === "real" ? "real" : "example"}>{workflow.mode === "real" ? "真实分析" : "公开论文"}</span><span className={`competition-mode ${analysisMode.strict ? "strict" : "demo"}`}>{analysisMode.label}</span><p>{workflow.phase === "error" ? workflow.error : workflow.phase === "cancelled" ? "分析已取消，可调整后重试" : report?.summary ?? "文档已就绪，等待开始分析"}</p><button type="button" onClick={() => setDrawer("privacy")}>隐私与数据流</button></div>
+            <div className="section-heading"><div><h2 id="upload-title">文档工作区 <span>（1–20 篇）</span></h2><p>PDF、DOCX、TXT、Markdown 均在浏览器本地解析</p></div><div className="run-actions"><button className="secondary-run" type="button" disabled={isBusy} onClick={loadExampleDocuments}>载入公开论文</button>{workflow.phase === "analyzing" ? <button className="run-button danger" type="button" onClick={cancelAnalysis}>取消分析</button> : <button className="run-button" type="button" disabled={isBusy} onClick={runRealAnalysis}>开始真实分析</button>}</div></div>
+            <div className="mode-banner"><span className={workflow.mode === "real" ? "real" : "example"}>{workflow.mode === "real" ? "真实分析" : documents.length ? "公开论文" : "待开始"}</span><span className={`competition-mode ${analysisMode.strict ? "strict" : "demo"}`}>{analysisMode.label}</span><p>{workflow.phase === "error" ? workflow.error : workflow.phase === "cancelled" ? "分析已取消，可调整后重试" : report?.summary ?? (documents.length ? "文档已就绪，等待开始分析" : "请添加文档，或载入公开论文后配置模型并开始真实分析")}</p><button type="button" onClick={() => setDrawer("privacy")}>隐私与数据流</button></div>
             <div className="upload-layout"><button className={`drop-zone ${isDragging ? "dragging" : ""}`} type="button" disabled={isBusy} onClick={() => fileInputRef.current?.click()} onDragEnter={() => { if (!isBusy) setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}><span className="upload-art" aria-hidden="true">⇧</span><strong>拖拽文件到这里，或点击上传</strong><small>支持 PDF、DOCX、TXT、MD（≤ 50MB）</small></button><input ref={fileInputRef} className="sr-only" type="file" disabled={isBusy} multiple accept=".pdf,.docx,.txt,.md" onChange={handleFiles} />
               <div className="file-tray"><div className="tray-heading"><p>已添加 {documents.length}/20 · 已选择 {selectedDocumentIds.size} 篇</p><div><button type="button" disabled={isBusy} onClick={() => selectDocuments(new Set(documents.map((document) => document.id)))}>全选</button><button type="button" disabled={isBusy} onClick={() => selectDocuments(new Set())}>取消全选</button><button type="button" disabled={isBusy} onClick={() => { documents.forEach((item) => { if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl); }); previewUrlsRef.current.clear(); setDocuments([]); setSelectedDocumentIds(new Set()); setReport(null); setSelectedRecordId(""); notify("工作区已清空", "success"); }}>清空</button></div></div><div className="file-list">{documents.map((file) => <div className="file-chip-wrap" key={file.id}><label><input type="checkbox" aria-label={`选择文档 ${file.name}`} disabled={isBusy} checked={selectedDocumentIds.has(file.id)} onChange={(event) => { const next = new Set(selectedDocumentIds); if (event.target.checked) next.add(file.id); else next.delete(file.id); selectDocuments(next); }} /><span>参与分析</span></label><button className="file-chip" title={`${file.name} · ${bytes(file.size)}`} type="button" onClick={() => void openDocument(file)}><span className={`file-type ${file.type}`}>{file.type.toUpperCase()}</span><small>{file.name.replace(/\.[^.]+$/, "")}</small><i>{file.pageCount}页</i></button></div>)}{documents.length < 20 && <button className="add-file" type="button" onClick={() => fileInputRef.current?.click()} aria-label="添加更多文献">+</button>}</div></div>
             </div>
@@ -317,7 +395,7 @@ export default function MatTraceDashboard() {
           {(workflow.phase === "analyzing" || report?.coverageMatrix) && <article className="card audit-card"><div className="section-heading compact"><div><h2>证据覆盖与可比性审计</h2><p>{workflow.phase === "analyzing" ? `${analysisProgress.current} · ${analysisProgress.completed}/${analysisProgress.total}` : "每篇文档均有处理结论，每条证据均有可解释评分"}</p></div>{report?.coverageMatrix && <div className="audit-downloads"><button type="button" onClick={() => download(buildAuditExport("coverage", report))}>覆盖矩阵 CSV</button><button type="button" onClick={() => download(buildAuditExport("passports", report))}>可比性护照 JSONL</button></div>}</div>{report?.coverageMatrix && <div className="coverage-grid">{report.coverageMatrix.map((row) => <article key={row.documentId} className={row.status}><span>{row.status === "extracted" ? "✓" : row.status === "no_evidence" ? "○" : row.status === "failed" ? "!" : "×"}</span><div><strong>{row.documentName}</strong><small>{row.checkedPages.length}/{row.pageCount} 页已核查 · {row.recordCount} 条证据</small>{row.reason && <p>{row.reason}</p>}</div></article>)}</div>}{report?.comparabilityPassports?.length ? <div className="passport-strip">{report.comparabilityPassports.slice(0, 6).map((passport) => <div key={passport.recordId}><b>{passport.scores.total}</b><span>{passport.material} · {passport.property}</span><small>{passport.comparable ? "可比较" : passport.reasons[0]}</small></div>)}</div> : null}</article>}
 
           <article className="card data-card" id="results" aria-labelledby="overview-title"><div className="section-heading compact"><div><h2 id="overview-title">分析结果与证据</h2><p>点击数据行可查看原文、页码和来源文档</p></div><button className="text-button" type="button" onClick={() => setDrawer("records")}>查看全部数据 →</button></div><div className="summary-grid">{summaryCards.map((item) => <button className={`summary-card ${item.tone}`} key={item.label} type="button" onClick={() => setDrawer(item.drawer)}><span><small>{item.label}</small><strong>{item.value}</strong></span><b aria-hidden="true">{item.icon}</b></button>)}</div>
-            <div className="table-wrap"><table><thead><tr><th>材料体系</th><th>制备工艺</th><th>性能指标</th><th>数值（单位）</th><th>测试条件</th><th>来源</th><th>可信度</th></tr></thead><tbody>{records.length ? records.slice(0, 5).map((record) => <tr className={selectedRecordId === record.id ? "selected" : ""} key={record.id} onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { setSelectedRecordId(record.id); setDrawer("evidence"); } }}><td>{record.material}</td><td>{record.process}</td><td>{record.property}</td><td>{record.value} {record.unit}</td><td>{record.conditionText}</td><td>{record.sourceDocument} · P.{record.page}</td><td><span className={`confidence ${record.confidence}`}>{record.confidence === "high" ? "高" : record.confidence === "medium" ? "中" : "低"}</span></td></tr>) : <tr><td colSpan={7} className="empty-cell">暂无结果，请载入公开论文或完成真实分析</td></tr>}</tbody></table></div>
+            <div className="table-wrap"><table><thead><tr><th>材料体系</th><th>制备工艺</th><th>性能指标</th><th>数值（单位）</th><th>测试条件</th><th>来源</th><th>可信度</th></tr></thead><tbody>{records.length ? records.map((record) => <tr className={selectedRecordId === record.id ? "selected" : ""} key={record.id} onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { setSelectedRecordId(record.id); setDrawer("evidence"); } }}><td>{record.material}</td><td>{record.process}</td><td>{record.property}</td><td>{valueText(record)}</td><td>{record.conditionText}</td><td>{record.sourceDocument} · P.{record.page}</td><td><span className={`confidence ${record.confidence}`}>{record.confidence === "high" ? "高" : record.confidence === "medium" ? "中" : "低"}</span></td></tr>) : <tr><td colSpan={7} className="empty-cell">暂无结果，请载入公开论文或完成真实分析</td></tr>}</tbody></table></div>
           </article>
           <footer className="workspace-footer"><span>♢ {workflow.mode === "real" ? "真实分析模式" : "公开论文模式"}</span><i /><span>由 material-evidence-extractor Skill 驱动</span></footer>
         </section>
@@ -333,12 +411,12 @@ export default function MatTraceDashboard() {
       {settingsOpen && <SettingsDialog open gateway={gateway} model={model} apiKey={apiKey} provider={provider} protocol={protocol} onClose={() => setSettingsOpen(false)} onApply={(value) => { const saved = saveProvider(window.localStorage, value); const providerChanged = saved.provider !== provider || saved.protocol !== protocol || saved.gateway !== gateway || saved.model !== model; setGateway(saved.gateway); setModel(saved.model); setApiKey(saved.apiKey); setProvider(saved.provider); setProtocol(saved.protocol); if (providerChanged) { setReport(null); setSelectedRecordId(""); } }} onNotify={notify} />}
       <ToastRegion toasts={toasts} />
 
-      <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出比赛 Skill" : undefined} editableTitle={!!documentPreview && !isBusy} onRenameTitle={renamePreviewDocument}>
+      <DetailsDrawer open={drawer !== null || documentPreview !== null} onClose={() => { setDrawer(null); setDocumentPreview(null); }} title={documentPreview ? documentPreview.name : drawer === "skill" ? "Skill 管理" : drawer === "documents" ? "文档管理" : drawer === "records" ? "全部提取数据" : drawer === "evidence" ? "证据链详情" : drawer === "missing" ? "缺失条件" : drawer === "conflicts" ? "冲突检测" : drawer === "export" ? "导出预览" : "隐私与数据流"} subtitle={documentPreview ? `${documentPreview.type.toUpperCase()} · ${bytes(documentPreview.size)} · ${documentPreview.pageCount} 页` : drawer === "skill" ? "预览、修改并导出 Skill" : undefined} editableTitle={!!documentPreview && !isBusy} onRenameTitle={renamePreviewDocument}>
         {!documentPreview && drawer === "skill" && <SkillManager onNotify={notify} />}
         {documentPreview && <><div className="document-view-tabs">{documentPreview.type === "pdf" && <button className={documentPreviewMode === "pdf" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("pdf")}>PDF 原文</button>}<button className={documentPreviewMode === "text" ? "active" : ""} type="button" onClick={() => setDocumentPreviewMode("text")}>解析文本</button></div>{documentPreview.type === "pdf" && documentPreviewMode === "pdf" ? (documentPreview.previewUrl ? <PdfReader key={documentPreview.previewUrl} source={documentPreview.previewUrl} name={documentPreview.name} /> : <div className="drawer-empty">当前项目未保留此 PDF 原文件，请重新上传后预览</div>) : <DocumentTextViewer pages={documentPreview.pages} />}<button className="drawer-danger" type="button" disabled={isBusy} onClick={() => { removeDocument(documentPreview.id); setDocumentPreview(null); }}>移除此文档</button></>}
         {!documentPreview && drawer === "documents" && <div className="drawer-list">{documents.map((doc) => <article key={doc.id}><span className={`file-type ${doc.type}`}>{doc.type.toUpperCase()}</span><div><strong>{doc.name}</strong><p>{bytes(doc.size)} · {doc.pageCount} 页 · {doc.example ? "公开 PDF" : "本地已解析"}</p></div><button type="button" onClick={() => void openDocument(doc)}>预览</button><button type="button" disabled={isBusy} onClick={() => removeDocument(doc.id)}>移除</button></article>)}</div>}
-        {!documentPreview && drawer === "records" && <div className="record-grid">{records.map((record) => <button key={record.id} type="button" onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }}><span>{record.material}</span><strong>{record.value} {record.unit}</strong><small>{record.property} · {record.sourceDocument}</small></button>)}</div>}
-        {!documentPreview && drawer === "evidence" && (activeRecord ? <div className="evidence-detail"><div className="evidence-meta"><span>{activeRecord.material}</span><span>{activeRecord.property}</span><span>{activeRecord.value} {activeRecord.unit}</span><span>{activeRecord.confidence}</span></div><blockquote>{activeRecord.evidence}</blockquote><p><strong>来源：</strong>{activeRecord.sourceDocument} · 第 {activeRecord.page} 页</p><p><strong>制备：</strong>{activeRecord.process}</p><p><strong>条件：</strong>{activeRecord.conditionText}</p><div className="drawer-tabs">{records.map((record) => <button className={record.id === selectedRecordId ? "active" : ""} key={record.id} type="button" onClick={() => setSelectedRecordId(record.id)}>{record.id}</button>)}</div></div> : <div className="drawer-empty">暂无证据</div>)}
+        {!documentPreview && drawer === "records" && <div className="record-grid">{records.map((record) => <button key={record.id} type="button" onClick={() => { setSelectedRecordId(record.id); setDrawer("evidence"); }}><span>{record.material}</span><strong>{valueText(record)}</strong><small>{record.property} · {record.sourceDocument}</small></button>)}</div>}
+        {!documentPreview && drawer === "evidence" && (activeRecord ? <div className="evidence-detail"><div className="evidence-meta"><span>{activeRecord.material}</span><span>{activeRecord.property}</span><span>{valueText(activeRecord)}</span><span>{activeRecord.confidence}</span></div><blockquote>{activeRecord.evidence}</blockquote><p><strong>来源：</strong>{activeRecord.sourceDocument} · 第 {activeRecord.page} 页</p><p><strong>制备：</strong>{activeRecord.process}</p><p><strong>条件：</strong>{activeRecord.conditionText}</p><div className="drawer-tabs">{records.map((record) => <button className={record.id === selectedRecordId ? "active" : ""} key={record.id} type="button" onClick={() => setSelectedRecordId(record.id)}>{record.id}</button>)}</div></div> : <div className="drawer-empty">暂无证据</div>)}
         {!documentPreview && drawer === "missing" && <div className="issue-list">{report?.missingConditions.length ? report.missingConditions.map((item) => <article key={item.id}><b>!</b><div><strong>{item.message}</strong><p>关联记录：{item.recordId}</p></div><button type="button" onClick={() => { setSelectedRecordId(item.recordId ?? ""); setDrawer("evidence"); }}>查看证据</button></article>) : <div className="drawer-empty">没有发现缺失条件</div>}</div>}
         {!documentPreview && drawer === "conflicts" && <div className="issue-list conflict-list">{report?.conflicts.length ? report.conflicts.map((item) => <article key={item.id}><b>△</b><div><strong>{item.message}</strong><p>相关记录：{item.recordIds?.join("、")} · 差异 {item.differencePercent ?? "待核验"}%</p></div><button type="button" onClick={() => { setSelectedRecordId(item.recordIds?.[0] ?? ""); setDrawer("evidence"); }}>核对来源</button></article>) : <div className="drawer-empty">没有发现跨文献数值冲突</div>}</div>}
         {!documentPreview && drawer === "export" && <div className="export-workspace"><div className="format-tabs">{(["json", "csv", "markdown"] as const).map((format) => <button className={exportFormat === format ? "active" : ""} type="button" key={format} onClick={() => setExportFormat(format)}>{format === "markdown" ? "Markdown" : format.toUpperCase()}</button>)}</div>{exportOutput ? <><pre>{exportOutput.content}</pre><div className="drawer-actions"><button type="button" onClick={copyExport}>复制内容</button><button className="primary-button" type="button" onClick={() => download(exportOutput)}>下载 {exportOutput.filename}</button></div></> : <div className="drawer-empty">暂无可导出的分析结果</div>}</div>}

@@ -14,14 +14,11 @@
     "start": "vinext start",
     "proxy:ai": "node scripts/local-ai-proxy.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "test:core": "node --test tests/mattrace-core.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:static": "npm run build:static && playwright test --config playwright.static.config.ts",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.2",
     "mammoth": "1.12.0",
     "pdfjs-dist": "6.2.108",
     "react": "19.2.6",
@@ -38,7 +35,6 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
-    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.5",

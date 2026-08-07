@@ -1,0 +1,248 @@
+{
+  "coverage_matrix": [
+    {
+      "document_id": "doc-2103.08718",
+      "status": "extracted",
+      "checked_pages": [
+        "2"
+      ],
+      "record_count": 2,
+      "reason": "在标注页找到并核验了 2 条带单位的性能证据"
+    },
+    {
+      "document_id": "doc-2202.06763",
+      "status": "extracted",
+      "checked_pages": [
+        "21"
+      ],
+      "record_count": 1,
+      "reason": "在标注页找到并核验了 1 条带单位的性能证据"
+    },
+    {
+      "document_id": "doc-2404.13858",
+      "status": "extracted",
+      "checked_pages": [
+        "10"
+      ],
+      "record_count": 2,
+      "reason": "在标注页找到并核验了 2 条带单位的性能证据"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "gold-llzto-kappa",
+      "document_id": "doc-2103.08718",
+      "material_name_raw": "Li6.4La3Zr1.4Ta0.6O12",
+      "material_name_normalized": "Li6.4La3Zr1.4Ta0.6O12",
+      "property_name": "thermal conductivity",
+      "value_raw": "1.4",
+      "unit_raw": "W m-1 K-1",
+      "value_status": "reported",
+      "normalized_value": 1.4,
+      "normalized_unit": "W m-1 K-1",
+      "source_document": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718)",
+      "page": "2",
+      "evidence_text": "thermal conductivities of Li 6.4 La 3 Zr 1.4 Ta 0.6 O 12 and Li 1.5 Al 0.5 Ge 1.5 (PO 4 ) 3 are 1.4 W m -1 K -1 and 2.2 W m -1 K -1 , respectively.",
+      "missing_conditions": [
+        "method",
+        "orientation",
+        "density_or_porosity"
+      ],
+      "confidence": "medium",
+      "confidence_reasons": [
+        "证据来自摘要，需在正文或表图中复核",
+        "关键测试条件缺失: method, orientation, density_or_porosity"
+      ],
+      "review_required": true
+    },
+    {
+      "record_id": "gold-lagp-kappa",
+      "document_id": "doc-2103.08718",
+      "material_name_raw": "Li1.5Al0.5Ge1.5(PO4)3",
+      "material_name_normalized": "Li1.5Al0.5Ge1.5(PO4)3",
+      "property_name": "thermal conductivity",
+      "value_raw": "2.2",
+      "unit_raw": "W m-1 K-1",
+      "value_status": "reported",
+      "normalized_value": 2.2,
+      "normalized_unit": "W m-1 K-1",
+      "source_document": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718)",
+      "page": "2",
+      "evidence_text": "thermal conductivities of Li 6.4 La 3 Zr 1.4 Ta 0.6 O 12 and Li 1.5 Al 0.5 Ge 1.5 (PO 4 ) 3 are 1.4 W m -1 K -1 and 2.2 W m -1 K -1 , respectively.",
+      "missing_conditions": [
+        "method",
+        "orientation",
+        "density_or_porosity"
+      ],
+      "confidence": "medium",
+      "confidence_reasons": [
+        "证据来自摘要，需在正文或表图中复核",
+        "关键测试条件缺失: method, orientation, density_or_porosity"
+      ],
+      "review_required": true
+    },
+    {
+      "record_id": "gold-cslndb-cond",
+      "document_id": "doc-2202.06763",
+      "material_name_raw": "Cs2LiNd(BO3)2",
+      "material_name_normalized": "Cs2LiNd(BO3)2",
+      "property_name": "ionic conductivity",
+      "value_raw": "0.000503",
+      "unit_raw": "S/cm",
+      "value_status": "reported",
+      "normalized_value": 0.000503,
+      "normalized_unit": "S/cm",
+      "source_document": "Machine-Learning Aided Discovery of Superionic Solid Electrolyte for Li-Ion Batteries (arXiv:2202.06763)",
+      "page": "21",
+      "evidence_text": "Ionic conductivity (S/cm) at RT mp-1194993 Cs 2 LiNd(BO 3 ) 2 0.000503",
+      "missing_conditions": [
+        "frequency_range"
+      ],
+      "confidence": "medium",
+      "confidence_reasons": [
+        "关键测试条件缺失: frequency_range"
+      ],
+      "review_required": true
+    },
+    {
+      "record_id": "gold-li3p-cond",
+      "document_id": "doc-2404.13858",
+      "material_name_raw": "Li3P",
+      "material_name_normalized": "Li3P",
+      "property_name": "ionic conductivity",
+      "value_raw": "1.0 × 10-3",
+      "unit_raw": "S/cm",
+      "value_status": "reported",
+      "normalized_value": 0.001,
+      "normalized_unit": "S/cm",
+      "source_document": "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties (arXiv:2404.13858)",
+      "page": "10",
+      "evidence_text": "phonon dispersion curves of Li 3 P ( s = 1.0 ´ 10 -3 S/cm) and b -Li 3 N ( s = 2.085 ´ 10 -4 S/cm), respectively, as representative examples.",
+      "missing_conditions": [
+        "method",
+        "frequency_range"
+      ],
+      "confidence": "medium",
+      "confidence_reasons": [
+        "关键测试条件缺失: method, frequency_range"
+      ],
+      "review_required": true
+    },
+    {
+      "record_id": "gold-bli3n-cond",
+      "document_id": "doc-2404.13858",
+      "material_name_raw": "β-Li3N",
+      "material_name_normalized": "β-Li3N",
+      "property_name": "ionic conductivity",
+      "value_raw": "2.085 × 10-4",
+      "unit_raw": "S/cm",
+      "value_status": "reported",
+      "normalized_value": 0.0002085,
+      "normalized_unit": "S/cm",
+      "source_document": "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties (arXiv:2404.13858)",
+      "page": "10",
+      "evidence_text": "phonon dispersion curves of Li 3 P ( s = 1.0 ´ 10 -3 S/cm) and b -Li 3 N ( s = 2.085 ´ 10 -4 S/cm), respectively, as representative examples.",
+      "missing_conditions": [
+        "method",
+        "frequency_range"
+      ],
+      "confidence": "medium",
+      "confidence_reasons": [
+        "关键测试条件缺失: method, frequency_range"
+      ],
+      "review_required": true
+    }
+  ],
+  "missing_conditions": [
+    {
+      "record_id": "gold-llzto-kappa",
+      "field": "method",
+      "message": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718) 中 Li6.4La3Zr1.4Ta0.6O12 的关键测试条件 method 未在证据页说明"
+    },
+    {
+      "record_id": "gold-llzto-kappa",
+      "field": "orientation",
+      "message": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718) 中 Li6.4La3Zr1.4Ta0.6O12 的关键测试条件 orientation 未在证据页说明"
+    },
+    {
+      "record_id": "gold-llzto-kappa",
+      "field": "density_or_porosity",
+      "message": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718) 中 Li6.4La3Zr1.4Ta0.6O12 的关键测试条件 density_or_porosity 未在证据页说明"
+    },
+    {
+      "record_id": "gold-lagp-kappa",
+      "field": "method",
+      "message": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718) 中 Li1.5Al0.5Ge1.5(PO4)3 的关键测试条件 method 未在证据页说明"
+    },
+    {
+      "record_id": "gold-lagp-kappa",
+      "field": "orientation",
+      "message": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718) 中 Li1.5Al0.5Ge1.5(PO4)3 的关键测试条件 orientation 未在证据页说明"
+    },
+    {
+      "record_id": "gold-lagp-kappa",
+      "field": "density_or_porosity",
+      "message": "Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity (arXiv:2103.08718) 中 Li1.5Al0.5Ge1.5(PO4)3 的关键测试条件 density_or_porosity 未在证据页说明"
+    },
+    {
+      "record_id": "gold-cslndb-cond",
+      "field": "frequency_range",
+      "message": "Machine-Learning Aided Discovery of Superionic Solid Electrolyte for Li-Ion Batteries (arXiv:2202.06763) 中 Cs2LiNd(BO3)2 的关键测试条件 frequency_range 未在证据页说明"
+    },
+    {
+      "record_id": "gold-li3p-cond",
+      "field": "method",
+      "message": "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties (arXiv:2404.13858) 中 Li3P 的关键测试条件 method 未在证据页说明"
+    },
+    {
+      "record_id": "gold-li3p-cond",
+      "field": "frequency_range",
+      "message": "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties (arXiv:2404.13858) 中 Li3P 的关键测试条件 frequency_range 未在证据页说明"
+    },
+    {
+      "record_id": "gold-bli3n-cond",
+      "field": "method",
+      "message": "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties (arXiv:2404.13858) 中 β-Li3N 的关键测试条件 method 未在证据页说明"
+    },
+    {
+      "record_id": "gold-bli3n-cond",
+      "field": "frequency_range",
+      "message": "Machine Learning Prediction Models for Solid Electrolytes based on Lattice Dynamics Properties (arXiv:2404.13858) 中 β-Li3N 的关键测试条件 frequency_range 未在证据页说明"
+    }
+  ],
+  "conflicts": [],
+  "review_queue": [
+    {
+      "record_id": "gold-llzto-kappa",
+      "reasons": [
+        "证据来自摘要，需在正文或表图中复核",
+        "关键测试条件缺失: method, orientation, density_or_porosity"
+      ]
+    },
+    {
+      "record_id": "gold-lagp-kappa",
+      "reasons": [
+        "证据来自摘要，需在正文或表图中复核",
+        "关键测试条件缺失: method, orientation, density_or_porosity"
+      ]
+    },
+    {
+      "record_id": "gold-cslndb-cond",
+      "reasons": [
+        "关键测试条件缺失: frequency_range"
+      ]
+    },
+    {
+      "record_id": "gold-li3p-cond",
+      "reasons": [
+        "关键测试条件缺失: method, frequency_range"
+      ]
+    },
+    {
+      "record_id": "gold-bli3n-cond",
+      "reasons": [
+        "关键测试条件缺失: method, frequency_range"
+      ]
+    }
+  ]
+}

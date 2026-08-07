@@ -3,7 +3,7 @@ function conditionValue(conditions, field) {
   const aliases = {
     method: ["method", "test_method"],
     frequency_range: ["frequency_range", "frequency"],
-    density_or_porosity: ["relative_density", "density", "porosity"],
+    density_or_porosity: ["density_or_porosity", "relative_density", "density", "porosity"],
     loading_rate: ["loading_rate", "strain_rate"],
   }[field] ?? [field];
   return aliases.some((key) => {

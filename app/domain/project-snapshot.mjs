@@ -18,6 +18,7 @@ export function createProjectSnapshot(state, savedAt = new Date().toISOString())
     provider: {
       gateway: String(state.gateway ?? ""),
       model: String(state.model ?? ""),
+      protocol: String(state.protocol ?? "openai-chat"),
     },
     documents: structuredClone(Array.isArray(state.documents) ? state.documents.map(stripSessionDocumentFields) : []),
     report: state.report ? structuredClone(state.report) : null,

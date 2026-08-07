@@ -1,7 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { providerPreset, resolveProviderPreset } from "../app/domain/provider-presets.mjs";
+import { DEFAULT_PROVIDER, providerPreset, resolveProviderPreset } from "../app/domain/provider-presets.mjs";
+
+test("default provider is the ChipCloud preset with no bundled key", () => {
+  assert.deepEqual(DEFAULT_PROVIDER, {
+    provider: "chipcloud",
+    label: "ChipCloud",
+    protocol: "openai-chat",
+    gateway: "https://ai.chipcloud.cc",
+    model: "qwen3.8-max",
+    apiKey: "",
+  });
+});
 
 test("Agent Plan preset uses the Responses endpoint base and evolving model", () => {
   assert.deepEqual(providerPreset("volcengine-agent-plan"), {

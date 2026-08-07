@@ -14,6 +14,7 @@ test("Responses requests use the Agent Plan endpoint and input_text messages", (
   assert.equal(body.stream, true);
   assert.deepEqual(body.input[0], { role: "system", content: [{ type: "input_text", text: "contract" }] });
   assert.equal("messages" in body, false);
+  assert.deepEqual(body.reasoning, { effort: "minimal" });
 });
 
 test("Chat requests retain the Chat Completions contract", () => {

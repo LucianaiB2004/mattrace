@@ -14,13 +14,17 @@ function scoreRecord(record) {
   const missingConditions = missingRequiredConditions(record.property, record.conditions);
   const hasConditions = missingConditions.length === 0;
   const normalized = Number.isFinite(record.normalizedValue) && Boolean(record.normalizedUnit);
+  const evidenceScore = traceable ? 35 : 0;
+  const completenessScore = Math.round((completeFields / 5) * 25);
+  const conditionsScore = hasConditions ? 20 : 0;
+  const comparabilityScore = normalized && hasConditions ? 20 : normalized ? 10 : 0;
   const scores = {
-    evidence: traceable ? 35 : 0,
-    completeness: Math.round((completeFields / 5) * 25),
-    conditions: hasConditions ? 20 : 0,
-    comparability: normalized && hasConditions ? 20 : normalized ? 10 : 0,
+    evidence: evidenceScore,
+    completeness: completenessScore,
+    conditions: conditionsScore,
+    comparability: comparabilityScore,
+    total: evidenceScore + completenessScore + conditionsScore + comparabilityScore,
   };
-  scores.total = scores.evidence + scores.completeness + scores.conditions + scores.comparability;
   const reasons = [];
   if (!locatorPresent) reasons.push("缺少可复查的页码或证据原文");
   if (locatorPresent && !valueAndUnitBound) reasons.push("证据原文未同时绑定当前数值与单位");

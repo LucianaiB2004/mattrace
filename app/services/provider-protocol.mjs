@@ -22,6 +22,10 @@ export function requestBody(config, messages, options = {}) {
         content: [{ type: "input_text", text: message.content }],
       })),
       max_output_tokens: maxTokens,
+      // Extraction is deterministic evidence grounding, not reasoning; minimal
+      // effort returns clean JSON quickly and avoids the model spending its whole
+      // output budget on reasoning and emitting no result.
+      reasoning: { effort: options.reasoningEffort ?? "minimal" },
       stream,
     };
   }

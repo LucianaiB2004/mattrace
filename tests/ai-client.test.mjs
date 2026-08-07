@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { analyzeDocument, analyzeDocuments, requestGateway, testProvider } from "../app/services/ai-client.mjs";
+import { analyzeDocument, requestGateway, testProvider } from "../app/services/ai-client.mjs";
 
 const config = {
   gateway: "https://ai.chipcloud.cc/",
@@ -89,36 +89,31 @@ test("Responses document analysis reserves output beyond the reasoning budget", 
     return response(200, { output_text: JSON.stringify({ status: "no_evidence", checkedPages: [1], reason: "No quantitative evidence." }) });
   });
 
-  assert.equal(requestBody.max_output_tokens, 16384);
+  assert.equal(requestBody.max_output_tokens, 32768);
 });
 
 test("analysis posts document evidence and returns a normalized report", async () => {
   let requestBody;
-  const stages = [];
-  const result = await analyzeDocuments(
+  const result = await analyzeDocument(
     config,
-    documents,
+    documents[0],
     async (_url, init) => {
       requestBody = JSON.parse(init.body);
       return response(200, {
-        choices: [{ message: { content: "```json\n{\"records\":[{\"material\":\"LLZO\",\"process\":\"固相烧结\",\"property\":\"离子电导率\",\"value\":1.2,\"unit\":\"mS/cm\",\"conditions\":{\"temperature\":\"25°C\"},\"sourceDocument\":\"paper.txt\",\"page\":1,\"evidence\":\"LLZO conductivity is 1.2 mS/cm at 25°C.\",\"confidence\":\"high\"}]}\n```" } }],
+        choices: [{ message: { content: "```json\n{\"status\":\"extracted\",\"checkedPages\":[1],\"records\":[{\"material\":\"LLZO\",\"process\":\"固相烧结\",\"property\":\"离子电导率\",\"value\":1.2,\"unit\":\"mS/cm\",\"conditions\":{\"temperature\":\"25°C\",\"method\":\"EIS\",\"frequency_range\":\"1 Hz-1 MHz\"},\"sourceDocument\":\"paper.txt\",\"page\":1,\"evidence\":\"LLZO conductivity is 1.2 mS/cm at 25°C.\",\"confidence\":\"high\"}]}\n```" } }],
       });
     },
-    undefined,
-    (stage) => stages.push(stage),
   );
 
   assert.equal(requestBody.model, "qwen3.8-max");
-  assert.equal(requestBody.max_tokens, 512);
-  assert.equal(requestBody.response_format.type, "json_object");
   assert.match(requestBody.messages[1].content, /paper\.txt/);
+  assert.equal(result.status, "extracted");
   assert.equal(result.records[0].normalizedValue, 0.0012);
-  assert.deepEqual(stages, [0, 1, 2, 3, 4, 5]);
 });
 
 test("analysis reports malformed model output without exposing the API key", async () => {
   await assert.rejects(
-    () => analyzeDocuments(config, documents, async () =>
+    () => analyzeDocument(config, documents[0], async () =>
       response(200, { choices: [{ message: { content: "not json runtime-only-key" } }] }),
     ),
     (error) => {
@@ -132,7 +127,7 @@ test("analysis reports malformed model output without exposing the API key", asy
 test("analysis preserves AbortError so the UI can distinguish cancellation", async () => {
   const aborted = new DOMException("Aborted", "AbortError");
   await assert.rejects(
-    () => analyzeDocuments(config, documents, async () => { throw aborted; }),
+    () => analyzeDocument(config, documents[0], async () => { throw aborted; }),
     (error) => error.name === "AbortError",
   );
 });
@@ -208,7 +203,7 @@ test("single-document analysis merges an OpenAI-compatible SSE response", async 
   });
   assert.equal(requestBody.stream, true);
   assert.equal(requestBody.enable_thinking, false);
-  assert.equal(requestBody.max_tokens, 4096);
+  assert.equal(requestBody.max_tokens, 8192);
   assert.equal(result.status, "extracted");
   assert.equal(result.records[0].material, "LLZO");
 });

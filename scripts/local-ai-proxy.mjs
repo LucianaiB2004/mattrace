@@ -3,11 +3,21 @@ import { request as httpsRequest } from "node:https";
 import { buildUpstreamHeaders, hasCompletedSse, resolveUpstream, responseHeaders } from "./proxy-transport.mjs";
 
 const port = Number(process.argv[2] || 8788);
-const allowedOrigins = new Set(["http://localhost:3000", "http://127.0.0.1:3000"]);
+
+// The proxy binds to loopback, so only local pages can reach it. Accept any
+// loopback origin (localhost / 127.0.0.1 / 0.0.0.0), regardless of port.
+function isLoopbackOrigin(origin) {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
 
 function corsHeaders(origin) {
   return {
-    ...(allowedOrigins.has(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
+    ...(isLoopbackOrigin(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Max-Age": "600",
@@ -35,7 +45,9 @@ function requestUpstream(url, options, body) {
       upstreamResponse.on("end", finish);
     });
     upstreamRequest.on("error", (error) => { if (!settled) reject(error); });
-    upstreamRequest.setTimeout(120_000, () => upstreamRequest.destroy(new Error("Upstream timeout")));
+    // Reasoning models can take several minutes per document for extraction;
+    // the local proxy just relays a single user, so allow a long ceiling.
+    upstreamRequest.setTimeout(600_000, () => upstreamRequest.destroy(new Error("Upstream timeout")));
     if (body.length) upstreamRequest.write(body);
     upstreamRequest.end();
   });
@@ -50,7 +62,7 @@ createServer(async (request, response) => {
     response.end();
     return;
   }
-  if (!allowedOrigins.has(origin) || !upstream) {
+  if (!isLoopbackOrigin(origin) || !upstream) {
     response.writeHead(403, { ...cors, "Content-Type": "application/json" });
     response.end('{"error":{"message":"Local proxy only accepts MatTrace localhost requests"}}');
     return;

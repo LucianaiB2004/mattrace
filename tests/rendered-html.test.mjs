@@ -39,6 +39,7 @@ test("server-renders the MatTrace dashboard landmarks", async () => {
   assert.match(html, /qwen3\.8-max/);
   assert.match(html, /载入公开论文/);
   assert.match(html, /开始真实分析/);
+  assert.match(html, /保存项目/);
   assert.doesNotMatch(html, /保存当前项目/);
   assert.doesNotMatch(html, /恢复项目/);
   assert.doesNotMatch(html, /项目与隐私/);

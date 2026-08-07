@@ -33,15 +33,101 @@ export function formatMeasurement(record) {
 export function extractJsonObject(text) {
   const input = String(text ?? "").trim();
   const fenced = input.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced?.[1] ?? input.slice(input.indexOf("{"), input.lastIndexOf("}") + 1);
-  if (!candidate || !candidate.trim().startsWith("{")) {
-    throw new Error("模型未返回可解析的 JSON 对象");
+  const body = (fenced?.[1] ?? input).trim();
+  const start = body.indexOf("{");
+  if (start < 0) throw new Error("模型未返回可解析的 JSON 对象");
+  // Walk the braces so any prose before or after the object is ignored, but the
+  // whole (possibly nested) object is captured even without a clean closing fence.
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < body.length; index += 1) {
+    const char = body[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        const candidate = body.slice(start, index + 1);
+        try { return JSON.parse(candidate); } catch { /* keep scanning if malformed */ }
+      }
+    }
   }
-  try {
-    return JSON.parse(candidate.trim());
-  } catch {
-    throw new Error("模型未返回可解析的 JSON 对象");
+  // Last resort: repair a stream that was cut off mid-object. Close any open
+  // string, then the innermost brackets/arrays that were left unclosed, so the
+  // already-emitted records are not lost just because the final bytes were truncated.
+  const repaired = repairTruncatedJson(body.slice(start));
+  if (repaired) {
+    try { return JSON.parse(repaired); } catch { /* give up */ }
   }
+  throw new Error("模型未返回可解析的 JSON 对象");
+}
+
+// Returns a best-effort closed version of a truncated JSON object, or null when
+// the prefix does not even look like a JSON object.
+function repairTruncatedJson(prefix) {
+  let inString = false;
+  let escaped = false;
+  const stack = [];
+  // The index just after the last position where a complete array element or
+  // object member closed cleanly — a safe point to truncate a partial tail.
+  let lastSafe = -1;
+  for (let index = 0; index < prefix.length; index += 1) {
+    const char = prefix[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{" || char === "[") stack.push(char);
+    else if (char === "}" || char === "]") {
+      stack.pop();
+      const after = prefix.slice(index + 1).match(/^\s*[,}\]]/);
+      if (after) lastSafe = index + 1;
+    }
+  }
+  if (!stack.length || stack[0] !== "{") return null;
+
+  const close = (text, openStack) => {
+    let result = text;
+    for (let index = openStack.length - 1; index >= 0; index -= 1) {
+      result += openStack[index] === "{" ? "}" : "]";
+    }
+    return result;
+  };
+
+  // First try closing the prefix as-is (covering a clean cut between elements).
+  const attempt = close(inString ? `${prefix}"` : prefix, stack);
+  try { JSON.parse(attempt); return attempt; } catch { /* truncate below */ }
+
+  // Otherwise drop everything after the last safely-closed element and re-close.
+  if (lastSafe < 0) return null;
+  const head = prefix.slice(0, lastSafe).replace(/,\s*$/, "");
+  // Recompute the open containers at the safe point.
+  const headStack = [];
+  let hString = false;
+  let hEscaped = false;
+  for (const char of head) {
+    if (hString) {
+      if (hEscaped) hEscaped = false;
+      else if (char === "\\") hEscaped = true;
+      else if (char === '"') hString = false;
+      continue;
+    }
+    if (char === '"') hString = true;
+    else if (char === "{" || char === "[") headStack.push(char);
+    else if (char === "}" || char === "]") headStack.pop();
+  }
+  if (headStack[0] !== "{") return null;
+  return close(head, headStack);
 }
 
 export function normalizeAnalysisResult(input) {
@@ -125,19 +211,78 @@ export function normalizeAnalysisResult(input) {
   };
 }
 
+// Normalize text for loose binding: unify minus glyphs, drop punctuation and
+// superscript markers so "S/cm", "S cm−1", "S cm^-1" all collapse to "scm1",
+// and "1.0 × 10^-3" matches "1.0×10−3".
+function compactForBinding(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[−–—]/g, "-")
+    .replace(/[^\p{L}\p{N}.%]+/gu, "");
+}
+
+// The unit stem drops exponent digits so "kg m^-3" and "W m^-1 K^-1" compare as
+// "kgm" and "wmk" against table text where the unit sits in a header.
+function unitStem(unit) {
+  return compactForBinding(unit).replace(/[-.]?\d+/g, "");
+}
+
+// Strip digits that are glued to a letter (unit exponents like "m-1", "kg3",
+// "W m^-1 K^-1" -> "wmk") while leaving standalone measurement values intact,
+// so a unit stem matches evidence regardless of how exponents are typeset.
+function unitEvidenceKey(evidenceCompact) {
+  return evidenceCompact.replace(/(\p{L})\d+/gu, "$1");
+}
+
+const DIMENSIONLESS_UNIT = /^(?:无单位|无量纲|dimensionless|none|n\/?a)$/i;
+const UNREPORTED_UNIT = /^(?:未说明|未标注|未报告|unreported)$/i;
+
+function unitInEvidence(unit, evidenceCompact) {
+  const raw = String(unit ?? "").trim();
+  if (!raw || UNREPORTED_UNIT.test(raw)) return { bound: false, unreported: true };
+  if (DIMENSIONLESS_UNIT.test(raw)) return { bound: true, dimensionless: true };
+  if (/^(?:arb\.?\s*units?|a\.?u\.?)$/i.test(raw)) return { bound: true, arbitrary: true };
+  if (raw === "%" || /percent/i.test(raw)) {
+    return { bound: evidenceCompact.includes("%") || evidenceCompact.includes("percent"), dimensionless: false };
+  }
+  const stem = unitStem(raw);
+  if (!stem) return { bound: true, dimensionless: true };
+  return { bound: unitEvidenceKey(evidenceCompact).includes(stem), dimensionless: false };
+}
+
+function significantNumbers(value) {
+  // Keep decimals and integers of 2+ digits as anchors; a lone "1" or exponent
+  // digit is too weak to bind on its own.
+  return String(value ?? "").match(/\d+\.\d+|\d{2,}/g) ?? [];
+}
+
 function assessConfidence({ evidenceText, valueRaw, unit, page, conditions, valueKind, property }) {
-  const compactEvidence = evidenceText.toLowerCase().replaceAll(" ", "");
-  const bound = compactEvidence.includes(String(valueRaw).toLowerCase().replaceAll(" ", ""))
-    && compactEvidence.includes(String(unit).toLowerCase().replaceAll(" ", ""));
+  const evidenceCompact = compactForBinding(evidenceText);
+  const anchors = significantNumbers(valueRaw);
+  const matchedAnchors = anchors.filter((token) => evidenceCompact.includes(compactForBinding(token)));
+  const valueBound = matchedAnchors.length > 0;
+  const allValuesBound = anchors.length > 0 && matchedAnchors.length === anchors.length;
+  const unitCheck = unitInEvidence(unit, evidenceCompact);
   const located = page != null && page !== "未定位";
   const missingConditions = missingRequiredConditions(property, conditions);
   const hasConditions = missingConditions.length === 0;
+
   const reasons = [];
-  if (!bound) reasons.push("证据原文未同时包含当前数值与单位");
+  if (!valueBound) reasons.push("证据原文未定位到当前数值");
+  else if (!allValuesBound) reasons.push("证据原文仅定位到部分数值，需核对范围/极限");
+  if (unitCheck.unreported) reasons.push("单位未说明，无法核验量纲");
+  else if (!unitCheck.bound) reasons.push("证据原文未定位到当前单位（可能在表头或被简写）");
+  else if (unitCheck.arbitrary) reasons.push("单位为任意单位（arb. unit），不可跨研究比较");
+  else if (unitCheck.dimensionless) reasons.push("单位为无量纲，已按无量纲处理");
   if (!located) reasons.push("来源页码未定位");
   if (!hasConditions) reasons.push(`关键测试条件缺失: ${missingConditions.join(", ")}`);
   if (valueKind !== "exact") reasons.push(`数值类型为 ${valueKind}，需保留原始语义`);
-  const confidence = !bound || !located || !hasConditions ? "low" : valueKind === "exact" ? "high" : "medium";
+
+  const grounded = valueBound && unitCheck.bound && located;
+  const cleanUnit = unitCheck.bound && !unitCheck.unreported && !unitCheck.arbitrary;
+  const confidence = !grounded ? "low"
+    : hasConditions && allValuesBound && valueKind === "exact" && cleanUnit ? "high"
+    : "medium";
   return { confidence, reasons };
 }
 

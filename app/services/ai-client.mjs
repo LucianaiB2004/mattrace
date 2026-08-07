@@ -1,5 +1,5 @@
 import { extractJsonObject, normalizeAnalysisResult } from "../domain/analysis.mjs";
-import { buildAnalysisMessages, buildDocumentAnalysisMessages, selectEvidenceExcerpts, selectedEvidencePages } from "../domain/prompt.mjs";
+import { buildDocumentAnalysisMessages, selectEvidenceExcerpts, selectedEvidencePages } from "../domain/prompt.mjs";
 import { requestBody, requestUrl, responseText } from "./provider-protocol.mjs";
 
 export function requestGateway(gateway, runtimeLocation = globalThis.location) {
@@ -11,16 +11,80 @@ export function requestGateway(gateway, runtimeLocation = globalThis.location) {
   return clean;
 }
 
+function bearerToken(config) {
+  return String(config.apiKey ?? "").trim().replace(/^bearer\s+/i, "");
+}
+
 function headers(config) {
-  if (!String(config.apiKey ?? "").trim()) throw new Error("请输入 API Key");
+  const token = bearerToken(config);
+  if (!token) throw new Error("请输入 API Key");
   return {
-    Authorization: `Bearer ${config.apiKey.trim()}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 }
 
 function compactEvidence(value) {
-  return String(value ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[−–—]/g, "-")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+// Reduce a unit to its letter stem so a table-header unit such as
+// "ionic conductivity (S cm−1)" or "W m^-1 K^-1" matches evidence rows that
+// carry the number but no inline unit. Exponents are dropped.
+function unitStem(value) {
+  return compactEvidence(value).replace(/[-.]?\d+/g, "");
+}
+
+// Strip digits glued to letters so exponents typeset as "m-1", "kg3", or
+// "wm1k1" collapse to the same letter stem ("wmk") and can match a header unit.
+function unitContextKey(contextCompact) {
+  return contextCompact.replace(/(\p{L})\d+/gu, "$1");
+}
+
+const UNREPORTED_UNIT = /^(?:未说明|未标注|未报告|unreported)?$/i;
+const DIMENSIONLESS_UNIT = /^(?:%|无单位|无量纲|dimensionless|none|n\/?a|arb\.?\s*units?|a\.?u\.?)$/i;
+
+function unitInContext(unit, context) {
+  const raw = String(unit ?? "").trim();
+  if (!raw || UNREPORTED_UNIT.test(raw) || DIMENSIONLESS_UNIT.test(raw)) return false;
+  return unitContextKey(context).includes(unitStem(raw));
+}
+
+// Group the submitted evidence text by page tag ("[第 N 页] ...") so a unit that
+// only shows up in a table header can still be matched on the right page.
+function submittedContextByPage(submittedEvidenceText) {
+  const byPage = new Map();
+  const chunks = String(submittedEvidenceText).split(/\n(?=\[第\s*\d+\s*页\])/);
+  for (const chunk of chunks) {
+    const tag = chunk.match(/\[第\s*(\d+)\s*页\]/);
+    if (!tag) continue;
+    const page = Number(tag[1]);
+    byPage.set(page, (byPage.get(page) ?? "") + compactEvidence(chunk));
+  }
+  return byPage;
+}
+
+// When a value lands on a table row but its unit only appears in the column
+// header, the evidence sentence alone cannot bind it. If the unit is present
+// elsewhere in the submitted text for that page, accept it as located via the
+// table header and leave a review note: the number is traceable, but the
+// header/row association should be eyeballed.
+function bindTableHeaderUnits(records, submittedEvidenceByPage) {
+  return records.map((record) => {
+    const unitIssue = record.confidenceReasons.some((reason) => reason.includes("未定位到当前单位"));
+    if (!unitIssue) return record;
+    const context = submittedEvidenceByPage.get(Number(record.page)) ?? "";
+    if (!unitInContext(record.unit, context)) return record;
+    return {
+      ...record,
+      confidence: record.confidence === "high" ? "high" : "medium",
+      confidenceReasons: [...record.confidenceReasons, "单位位于同页表头/上下文，数值已定位但需核对表头对应关系"],
+      reviewRequired: true,
+    };
+  });
 }
 
 async function errorMessage(response) {
@@ -34,6 +98,10 @@ async function errorMessage(response) {
   }
   return `HTTP ${response.status}`;
 }
+
+// Agent Plan responses include reasoning tokens in the output budget, so the
+// ceiling must leave room for both reasoning and the full JSON result.
+const ANALYSIS_MAX_TOKENS = Object.freeze({ "openai-responses": 32768, "openai-chat": 8192 });
 
 function safeError(prefix, detail, config) {
   const key = String(config.apiKey ?? "");
@@ -69,46 +137,6 @@ export async function testProvider(config, fetchImpl = fetch, signal) {
   return { ok: true, method: "chat" };
 }
 
-export async function analyzeDocuments(
-  config,
-  documents,
-  fetchImpl = fetch,
-  signal,
-  onStage = () => {},
-) {
-  if (!Array.isArray(documents) || documents.length === 0) throw new Error("请先添加可解析的文档");
-  const resolved = { ...config, protocol: config.protocol ?? "openai-chat", gateway: requestGateway(config.gateway) };
-  const requestHeaders = headers(config);
-  onStage(0);
-  onStage(1);
-  let response;
-  try {
-    response = await fetchImpl(requestUrl(resolved), {
-      method: "POST",
-      headers: requestHeaders,
-      signal,
-      body: JSON.stringify(requestBody(resolved, buildAnalysisMessages(documents), { maxTokens: 512, json: true })),
-    });
-  } catch (error) {
-    if (error?.name === "AbortError") throw error;
-    throw safeError("网络请求失败", error?.message || "无法连接模型服务", config);
-  }
-  if (!response.ok) throw safeError("分析请求失败", await errorMessage(response), config);
-
-  try {
-    onStage(2);
-    const raw = extractJsonObject(await responseText(resolved.protocol, response));
-    onStage(3);
-    const result = normalizeAnalysisResult(raw);
-    onStage(4);
-    onStage(5);
-    return result;
-  } catch (error) {
-    if (error?.name === "AbortError") throw error;
-    throw safeError("模型返回格式无效", error?.message || "无法解析", config);
-  }
-}
-
 export async function analyzeDocument(config, document, fetchImpl = fetch, signal) {
   if (!document) throw new Error("缺少待分析文档");
   const resolved = { ...config, protocol: config.protocol ?? "openai-chat", gateway: requestGateway(config.gateway) };
@@ -119,7 +147,7 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
       headers: headers(config),
       signal,
       body: JSON.stringify(requestBody(resolved, buildDocumentAnalysisMessages(document), {
-        maxTokens: resolved.protocol === "openai-responses" ? 16384 : 4096,
+        maxTokens: ANALYSIS_MAX_TOKENS[resolved.protocol] ?? 8192,
         stream: true,
         json: true,
       })),
@@ -162,7 +190,9 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
       };
     }
     const normalized = normalizeAnalysisResult(validated);
-    const submittedEvidence = compactEvidence(selectEvidenceExcerpts(document));
+    const submittedEvidenceText = selectEvidenceExcerpts(document);
+    const submittedEvidence = compactEvidence(submittedEvidenceText);
+    const submittedByPage = submittedContextByPage(submittedEvidenceText);
     normalized.records = normalized.records.map((record) => {
       const quote = compactEvidence(record.evidence);
       if (quote && submittedEvidence.includes(quote)) return { ...record, evidenceSourceBound: true };
@@ -174,6 +204,7 @@ export async function analyzeDocument(config, document, fetchImpl = fetch, signa
         reviewRequired: true,
       };
     });
+    normalized.records = bindTableHeaderUnits(normalized.records, submittedByPage);
     return { status: "extracted", checkedPages, reason: "", ...normalized };
   } catch (error) {
     if (error?.name === "AbortError") throw error;

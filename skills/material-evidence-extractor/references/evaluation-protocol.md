@@ -12,13 +12,19 @@
 
 记录模型名称、版本、温度、时间、输入文档哈希、三次原始输出和评分器版本。若任一组不足 3 次，不发布 uplift。
 
+逐字段比对单次运行与金标准（支持 `.jsonl`、记录数组或带 `records` 的顶层 JSON）：
+
+```bash
+node scripts/score-uplift.mjs --gold examples/sample-gold.jsonl --pred path/to/prediction.json
+```
+
 汇总六次已经客观评分的结果：
 
 ```bash
 node scripts/score-uplift.mjs --baseline 0.30,0.28,0.31 --skill 0.74,0.76,0.75
 ```
 
-命令中的数字必须来自真实运行；文档中的数字仅说明参数格式。
+命令中的数字必须来自真实运行；文档中的数字仅说明参数格式。本仓库用三篇真实论文提供了可复现样例：输入 `examples/sample-input.json`、金标准 `examples/sample-gold.jsonl`、规范化输出 `examples/sample-output.json`（对金标准自比得分 1.0）。
 
 ## LLM 评审
 

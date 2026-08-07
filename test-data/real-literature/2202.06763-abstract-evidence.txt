@@ -1,5 +1,0 @@
-Source: arXiv:2202.06763
-Title: Machine Learning-Aided Discovery of Superionic Solid-State Electrolyte for Li-Ion Batteries
-Authors: Seungpyo Kang, Minseon Kim, Kyoungmin Min
-
-A platform consisting of high-throughput screening and a machine-learning surrogate model for discovering superionic Li-ion solid-state electrolytes among 20,237 Li-containing materials is developed. To reduce uncertainty in the surrogate model, the ensemble method considering the best-performing two models is employed, whose mean prediction accuracy is 0.843 and 0.829, respectively. First-principles calculations are conducted for confirming the ionic conductivity of the strong candidates. Finally, six potential superionic Li solid-state electrolytes that have not previously been investigated are proposed.

@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { readFile } from "node:fs/promises";
 
 const DEFAULT_FIELDS = ["material_name_normalized", "property_name", "normalized_value", "normalized_unit", "source_document", "page"];
 
@@ -51,8 +52,25 @@ function option(name) {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
+async function loadRecords(path) {
+  const text = await readFile(path, "utf8");
+  if (path.toLowerCase().endsWith(".jsonl")) {
+    return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+  }
+  const parsed = JSON.parse(text);
+  return Array.isArray(parsed) ? parsed : parsed.records;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const parseScores = (value) => String(value ?? "").split(",").filter(Boolean).map(Number);
-  const summary = summarizeUplift(parseScores(option("--baseline")), parseScores(option("--skill")));
-  process.stdout.write(`${JSON.stringify(summary)}\n`);
+  const goldPath = option("--gold");
+  const predPath = option("--pred");
+  if (goldPath || predPath) {
+    if (!goldPath || !predPath) throw new Error("--gold 与 --pred 必须同时提供");
+    const [gold, pred] = await Promise.all([loadRecords(goldPath), loadRecords(predPath)]);
+    process.stdout.write(`${JSON.stringify(scoreRun(gold, pred))}\n`);
+  } else {
+    const parseScores = (value) => String(value ?? "").split(",").filter(Boolean).map(Number);
+    const summary = summarizeUplift(parseScores(option("--baseline")), parseScores(option("--skill")));
+    process.stdout.write(`${JSON.stringify(summary)}\n`);
+  }
 }

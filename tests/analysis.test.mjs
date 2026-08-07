@@ -33,6 +33,14 @@ test("extractJsonObject rejects prose without a JSON object", () => {
   assert.throws(() => extractJsonObject("模型暂时无法完成"), /未返回可解析的 JSON/);
 });
 
+test("extractJsonObject recovers complete records from a truncated stream", () => {
+  const truncated = '```json\n{"status":"extracted","records":[{"material":"LLZO"},{"material":"LAG';
+  const recovered = extractJsonObject(truncated);
+  assert.deepEqual(recovered.records, [{ material: "LLZO" }, { material: "LAG" }]);
+  const cutString = '{"records":[{"evidence":"unterminated';
+  assert.deepEqual(extractJsonObject(cutString).records, [{ evidence: "unterminated" }]);
+});
+
 test("normalizeAnalysisResult creates evidence-rich records and linked alerts", () => {
   const result = normalizeAnalysisResult({
     records: [baseRecord],
@@ -44,8 +52,17 @@ test("normalizeAnalysisResult creates evidence-rich records and linked alerts", 
   assert.equal(result.records[0].id, "record-1");
   assert.equal(result.records[0].normalizedValue, 0.0012);
   assert.equal(result.records[0].normalizedUnit, "S/cm");
+  assert.equal(result.records[0].confidence, "high");
+  assert.equal(result.records[0].reviewRequired, false);
   assert.equal(result.missingConditions[0].recordId, "record-1");
   assert.equal(result.summary, "提取完成");
+});
+
+test("normalizeAnalysisResult binds units despite punctuation or exponent differences", () => {
+  const result = normalizeAnalysisResult({ records: [
+    { ...baseRecord, property: "热导率", value: 1.4, unit: "W m^-1 K^-1", evidence: "The thermal conductivity was 1.4 W m−1 K−1 at 25°C.", conditions: { temperature: "25°C", method: "laser flash", orientation: "in-plane", density_or_porosity: "95%" } },
+  ]});
+  assert.equal(result.records[0].confidence, "high");
 });
 
 test("normalizeAnalysisResult ignores orphaned model alerts without discarding valid records", () => {
@@ -87,7 +104,7 @@ test("normalizeAnalysisResult derives confidence from evidence instead of trusti
   const result = normalizeAnalysisResult({ records: [{ ...baseRecord, evidence: "LLZO was characterized.", confidence: "high" }] });
   assert.equal(result.records[0].confidence, "low");
   assert.equal(result.records[0].reviewRequired, true);
-  assert.match(result.records[0].confidenceReasons.join(" "), /数值与单位/);
+  assert.match(result.records[0].confidenceReasons.join(" "), /未定位到当前数值/);
 });
 
 test("normalizeAnalysisResult does not treat an unknown unit as normalized", () => {
@@ -96,9 +113,10 @@ test("normalizeAnalysisResult does not treat an unknown unit as normalized", () 
   assert.equal(result.records[0].normalizedUnit, null);
 });
 
-test("property-specific missing conditions prevent a high confidence label", () => {
+test("property-specific missing conditions cap confidence at medium", () => {
   const result = normalizeAnalysisResult({ records: [{ ...baseRecord, property: "热导率", conditions: { temperature: "25°C" }, evidence: "热导率为 1.2 mS/cm at 25°C." }] });
-  assert.equal(result.records[0].confidence, "low");
+  assert.equal(result.records[0].confidence, "medium");
+  assert.equal(result.records[0].reviewRequired, true);
   assert.match(result.records[0].confidenceReasons.join(" "), /method|orientation|density_or_porosity/);
 });
 
@@ -107,7 +125,7 @@ test("condition status markers remain missing and prevent comparison", () => {
     { ...baseRecord, conditions: { temperature: "not_reported", method: "unclear", frequency_range: "not_applicable" } },
     { ...baseRecord, value: 1.8, sourceDocument: "paper-b.pdf", conditions: { temperature: "not_reported", method: "unclear", frequency_range: "not_applicable" } },
   ] }).records;
-  assert.equal(records[0].confidence, "low");
+  assert.equal(records[0].confidence, "medium");
   assert.deepEqual(detectConflicts(records), []);
 });
 

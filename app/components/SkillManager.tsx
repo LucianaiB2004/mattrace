@@ -18,7 +18,7 @@ export default function SkillManager({ onNotify }: SkillManagerProps) {
   const counts = summarizeSkillFiles(workspace.files);
 
   function select(file: SkillFile) { setSelectedPath(file.path); setDraft(file.content); setEditing(false); }
-  function save() { try { saveSkillFile(window.localStorage, selected.path, draft); const next = loadSkillWorkspace(window.localStorage); setWorkspace(next); setDraft(next.files.find((file: SkillFile) => file.path === selected.path).content); setEditing(false); onNotify("Skill 文件已保存到当前浏览器", "success"); } catch (error) { onNotify(error instanceof Error ? error.message : "Skill 保存失败", "error"); } }
+  function save() { try { saveSkillFile(window.localStorage, selected.path, draft); const next = loadSkillWorkspace(window.localStorage); setWorkspace(next); setDraft(next.files.find((file: SkillFile) => file.path === selected.path)?.content ?? draft); setEditing(false); onNotify("Skill 文件已保存到当前浏览器", "success"); } catch (error) { onNotify(error instanceof Error ? error.message : "Skill 保存失败", "error"); } }
   function restore() { const next = resetSkillWorkspace(window.localStorage); setWorkspace(next); const file = next.files.find((item: SkillFile) => item.path === selectedPath) ?? next.files[0]; setDraft(file.content); setEditing(false); onNotify("已恢复完整 Skill 默认版本", "success"); }
   function exportFile() { const output = buildSkillDownload(selected.content); downloadBlob(new Blob([output.content], { type: output.mime }), selected.path.split("/").at(-1) ?? output.filename); }
   async function exportZip() { try { downloadBlob(await buildSkillZip(workspace), "material-evidence-extractor.zip"); onNotify("完整 Skill ZIP 已生成", "success"); } catch { onNotify("Skill ZIP 生成失败", "error"); } }

@@ -12,7 +12,7 @@ test("analysis prompt applies the Skill contract to one document", () => {
   assert.match(messages[0].content, /材料组成/);
   assert.match(messages[0].content, /缺失字段/);
   assert.match(messages[0].content, /来源页码/);
-  assert.match(messages[0].content, /全部可追溯的定量性能记录/);
+  assert.match(messages[0].content, /可追溯的定量材料性能记录/);
   assert.match(messages[0].content, /material_name_raw/);
   assert.match(messages[0].content, /source_document/);
   assert.match(messages[0].content, /checked_pages/);

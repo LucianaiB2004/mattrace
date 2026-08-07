@@ -1,5 +1,0 @@
-Source: arXiv:2103.08718
-Title: Good Solid-State Electrolytes Have Low, Glass-like Thermal Conductivity
-Authors: Zhe Cheng et al.
-
-This work provides systematic quantitative measurements of thermal conductivity for oxide, sulfide, and halide solid electrolytes over 150-350 K. Thermal conductivities of sulfide and halide solid electrolytes are in the range 0.45-0.70 W m-1 K-1. Thermal conductivities of Li6.4La3Zr1.4Ta0.6O12 and Li1.5Al0.5Ge1.5(PO4)3 are 1.4 W m-1 K-1 and 2.2 W m-1 K-1, respectively. For most solid electrolytes, thermal conductivity increases with increasing temperature and has a glass-like temperature dependence.

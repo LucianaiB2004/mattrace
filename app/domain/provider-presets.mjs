@@ -4,6 +4,9 @@ export const PROVIDER_PRESETS = Object.freeze([
   Object.freeze({ provider: "custom", label: "自定义 OpenAI 接口", protocol: "openai-chat", gateway: "", model: "" }),
 ]);
 
+// The first preset, with no bundled key. API keys live only in the browser.
+export const DEFAULT_PROVIDER = Object.freeze({ ...PROVIDER_PRESETS[0], apiKey: "" });
+
 export function providerPreset(id) {
   const preset = PROVIDER_PRESETS.find((item) => item.provider === id);
   return preset ? { ...preset } : null;

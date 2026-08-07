@@ -34,7 +34,7 @@ test("Skill workspace loads the competition Skill and persists an edited version
 
 test("complete workspace exposes editable contracts, examples, and core code", () => {
   const workspace = loadSkillWorkspace(memoryStorage());
-  assert.equal(workspace.files.length, 21);
+  assert.equal(workspace.files.length, 26);
   assert.deepEqual(workspace.files.filter((file) => file.editable).map((file) => file.path).sort(), ["SKILL.md", "agents/openai.yaml", "references/output-schema.md", "references/coverage-and-comparability.md", "references/evaluation-protocol.md", "references/failure-cases.md"].sort());
   assert.ok(SKILL_FILES.some((file) => file.path === "examples/records.jsonl"));
   assert.ok(SKILL_FILES.some((file) => file.path === "scripts/extract-evidence.mjs"));
@@ -43,6 +43,11 @@ test("complete workspace exposes editable contracts, examples, and core code", (
   assert.ok(SKILL_FILES.some((file) => file.path === "examples/document-outcomes.jsonl"));
   assert.ok(SKILL_FILES.some((file) => file.path === "references/input-schema.json"));
   assert.ok(SKILL_FILES.some((file) => file.path === "references/output-schema.json"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "references/unit-normalization.md"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "references/output-example.md"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "examples/sample-input.json"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "examples/sample-gold.jsonl"));
+  assert.ok(SKILL_FILES.some((file) => file.path === "examples/sample-output.json"));
   assert.ok(SKILL_FILES.some((file) => file.path === "scripts/score-uplift.mjs"));
   assert.match(DEFAULT_SKILL_CONTENT, /比赛严格模式输入 3-10 篇/);
 });
@@ -70,7 +75,7 @@ test("browser Skill workspace mirrors the canonical repository files byte for by
 });
 
 test("Skill overview derives its counts from the canonical workspace", () => {
-  assert.deepEqual(summarizeSkillFiles(SKILL_FILES), { contract: 8, example: 8, code: 5 });
+  assert.deepEqual(summarizeSkillFiles(SKILL_FILES), { contract: 10, example: 11, code: 5 });
 });
 
 test("Skill workspace rejects empty content and credential-like secrets", () => {
