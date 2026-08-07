@@ -12,10 +12,10 @@ test("contains one valid material evidence skill", async () => {
     ["material-evidence-extractor"],
   );
 
-  const skill = await readFile(
+  const skill = (await readFile(
     new URL("material-evidence-extractor/SKILL.md", skillRoot),
     "utf8",
-  );
+  )).replace(/\r\n/g, "\n");
   assert.match(skill, /^---\nname: material-evidence-extractor\n/m);
   assert.match(skill, /description: .{20,1024}\n---/s);
   assert.match(skill, /证据链/);
