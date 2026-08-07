@@ -10,7 +10,18 @@ export function makeStaticHtml(source) {
   return String(source)
     .replace(/\/_next\/image\?url=%2F([^&" ]+)(?:&amp;|&)[^" ]*/g, decodeOptimizedImage)
     .replace(/http:\/\/localhost:3000\//g, "./")
-    .replace(/\b(href|src|content|imageSrcSet)="\/(?!\/)/g, '$1="./');
+    .replace(/\b(href|src|content|imageSrcSet)="\/(?!\/)/g, '$1="./')
+    // The inlined RSC payload references chunks and CSS as root-absolute
+    // strings (e.g. \"/_next/static/...\" or :HL["/_next/..."]). Rewrite any
+    // remaining bare /_next/static/ to a relative path so hydration does not
+    // 404 when the site is served from a GitHub Pages project subpath. The
+    // negative lookbehind leaves already-correct ./_next/static/ untouched.
+    .replace(/(?<!\.)\/_next\/static\//g, "./_next/static/")
+    // RSC payload also encodes public-asset URLs (favicon, og:image) as
+    // root-absolute strings (e.g. \"/favicon.svg\"). Rewrite only escaped
+    // string values that point at static assets, so they resolve under the
+    // project subpath without touching route refs like [\"/page\"].
+    .replace(/\\"\/([a-zA-Z0-9._-]+\.(?:svg|png|ico|webp|jpg|jpeg|gif|woff2?|ttf|css|js))/g, '\\"./$1');
 }
 
 export function makeStaticCss(source) {
@@ -18,7 +29,13 @@ export function makeStaticCss(source) {
 }
 
 export function makeStaticJavaScript(source) {
-  return String(source).replaceAll("/_next/static/media/", "../media/");
+  return String(source)
+    .replaceAll("/_next/static/media/", "../media/")
+    // Vite's modulepreload polyfill prepends "/" to dep filenames
+    // (e.g. "_next/static/chunks/x.js" -> "/_next/static/chunks/x.js"), which
+    // resolves against the origin root and breaks under a project subpath.
+    // Make it prepend "./" so deps resolve relative to the document base.
+    .replace(/(`modulepreload`,[A-Za-z_$][\w$]*=function\([a-z]\)\{return)([`'"])\/\2/g, '$1$2./$2');
 }
 
 async function filesWithExtension(directory, extension) {

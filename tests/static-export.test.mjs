@@ -26,3 +26,28 @@ test("static JavaScript resolves generated worker media from the chunk directory
     'var worker=`../media/pdf.worker.hash.mjs`;',
   );
 });
+
+test("static export rewrites root-absolute paths inside the inlined RSC payload", () => {
+  // CSS/chunk refs appear as escaped JSON strings and :HL["..."] directives
+  // in the RSC payload; public assets like favicon appear as escaped hrefs.
+  const source = [
+    String.raw`rsc.push("0:{\"css:/_next/static/css/index.css\"}")`,
+    String.raw`:HL["/_next/static/chunks/x.js","script"]`,
+    String.raw`,\"href\":\"/favicon.svg\"}]`,
+    String.raw`[\"/page\",\"children\"]`,
+  ].join("");
+  const html = makeStaticHtml(source);
+  assert.match(html, /css:\.\/_next\/static\/css\/index\.css/);
+  assert.match(html, /:HL\["\.\/_next\/static\/chunks\/x\.js/);
+  assert.match(html, /\\"href\\":\\"\.\/favicon\.svg\\"/);
+  // Route references must not be rewritten.
+  assert.match(html, /\[\\"\/page\\",/);
+  assert.doesNotMatch(html, /(?<!\.)\/_next\/static\//);
+});
+
+test("static JavaScript makes Vite's modulepreload base subpath-safe", () => {
+  const source = "var Vc=`modulepreload`,Hc=function(e){return`/`+e},Uc={}";
+  const result = makeStaticJavaScript(source);
+  assert.match(result, /return`\.\/`\+e/);
+  assert.doesNotMatch(result, /return`\/`\+e/);
+});

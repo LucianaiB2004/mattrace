@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import DetailsDrawer from "./components/DetailsDrawer";
 import SettingsDialog from "./components/SettingsDialog";
@@ -374,7 +373,8 @@ export default function MatTraceDashboard() {
         <nav className="nav-list">{navItems.map(([icon, zh, en, target]) => (
           <button className={`nav-item ${activeNav === zh ? "active" : ""}`} key={zh} onClick={() => navigate(zh, target)} type="button"><span className="nav-icon" aria-hidden="true">{icon}</span><span>{zh}</span><small>/ {en}</small></button>
         ))}</nav>
-        <div className="mascot-zone"><p>Let&apos;s trace<br />every data!</p><Image src="/mattrace-mascot.png" alt="MatTrace 科研机器人" width={1024} height={1536} priority unoptimized /></div>
+        <div className="mascot-zone"><p>Let&apos;s trace<br />every data!</p>{/* eslint-disable-next-line @next/next/no-img-element -- plain img keeps a relative src so it resolves under the GitHub Pages /mattrace/ subpath at hydration */}
+          <img src="./mattrace-mascot.png" alt="MatTrace 科研机器人" width={1024} height={1536} loading="eager" fetchPriority="high" decoding="async" /></div>
         <button className="skill-pill" type="button" onClick={() => setDrawer("skill")}><span /> Skill: material-evidence-extractor</button>
       </aside>
 
