@@ -11,7 +11,7 @@ MatTrace 的核心是一个可复用的材料证据抽取 Skill（[`skills/mater
 - **Skill 本体**：[`skills/material-evidence-extractor/`](skills/material-evidence-extractor/)（opencode 标准格式，被评审主体）
 - **配套网页 Agent**：[`agent/`](agent/)（可视化演示，可独立运行）
 - **演示视频（B 站）**：<https://www.bilibili.com/video/BV1qPuK6TEMp/>
-- **在线演示**：<https://lucianaib2004.github.io/mattrace/>
+- **在线演示**：https://lucianaib2004.github.io/mattrace-demo/
 
 ## 背景
 
