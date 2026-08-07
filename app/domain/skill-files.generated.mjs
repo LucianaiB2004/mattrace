@@ -2,7 +2,7 @@
 export const SKILL_FILE_SOURCES = [
   {
     "path": "agents/openai.yaml",
-    "content": "interface:\r\n  display_name: \"MatTrace Material Evidence\"\r\n  short_description: \"Extract traceable material data with evidence\"\r\n  default_prompt: \"Use $material-evidence-extractor to audit every selected material document and produce coverage and comparability outputs.\"\n",
+    "content": "interface:\n  display_name: \"MatTrace Material Evidence\"\n  short_description: \"Extract traceable material data with evidence\"\n  default_prompt: \"Use $material-evidence-extractor to audit every selected material document and produce coverage and comparability outputs.\"\n",
     "category": "contract",
     "editable": true,
     "language": "yaml"
