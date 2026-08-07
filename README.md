@@ -8,6 +8,13 @@
 
 MatTrace 是一个面向材料科研的文献数据提取与核验 Agent。它把论文、专利或技术数据表（TDS）转换成带**原文证据、页码定位、测试条件和可信度**的结构化数据，并自动提醒条件缺失和跨文献数值冲突——让 AI 读完的每一篇文献，都有据可查。
 
+## 资源链接
+
+- **Skill地址**：https://github.com/LucianaiB2004/mattrace/tree/main/skills/material-evidence-extractor
+- **源码仓库**：<https://github.com/LucianaiB2004/mattrace>
+- **演示视频（B 站）**：<https://www.bilibili.com/video/BV1qPuK6TEMp/>
+- **在线演示**：https://lucianaib2004.github.io/mattrace/
+
 ![MatTrace 完整工作台](docs/mattrace-complete-preview.png)
 
 ## 背景与来源
@@ -19,12 +26,6 @@ AI 读文献很快，但科研里真正要命的是这三个问题：
 3. 两篇文献数据差了 50%，你确定它们的**测试条件一样、真的能比**吗？
 
 大多数 AI 文献工具，三个问题都答不上来。MatTrace 就是为了回答它们而做的：**项目优先是一个真正能用的工具，其次才是参赛作品。** 演示中所有数据均来自三篇真实 arXiv 论文，没有一条是编造的；网页端启动即为空，不预载任何模拟结果。
-
-## 资源链接
-
-- **源码仓库**：<https://github.com/LucianaiB2004/mattrace>
-- **演示视频（B 站）**：<https://www.bilibili.com/video/BV1qPuK6TEMp/>
-- **在线演示**：通过 GitHub Pages 静态部署（见下方「构建与发布」）
 
 ## 方法
 
