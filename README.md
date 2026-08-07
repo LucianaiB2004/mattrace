@@ -22,7 +22,7 @@ AI 读文献很快，但科研里真正要命的是这三个问题：
 
 ## 资源链接
 
-- **源码仓库**：<https://github.com/<你的用户名>/mattrace>（发布前请替换为实际 GitHub/Gitee 地址）
+- **源码仓库**：<https://github.com/LucianaiB2004/mattrace>
 - **演示视频（B 站）**：<https://www.bilibili.com/video/BV1qPuK6TEMp/>
 - **在线演示**：通过 GitHub Pages 静态部署（见下方「构建与发布」）
 
